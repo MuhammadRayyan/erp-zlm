@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getCurrentBusinessId } from '@/lib/business-context'
+import { ensureDefaultBusiness } from '@/lib/business-context'
 import { toNumber } from '@/lib/decimal'
 
 // GET /api/tax-rates
 export async function GET() {
-  const businessId = await getCurrentBusinessId()
-  if (!businessId) return NextResponse.json({ error: 'No business' }, { status: 400 })
+  const businessId = await ensureDefaultBusiness()
+  
 
   const rates = await db.taxRate.findMany({
     where: { businessId },
@@ -21,8 +21,8 @@ export async function GET() {
 
 // POST
 export async function POST(req: NextRequest) {
-  const businessId = await getCurrentBusinessId()
-  if (!businessId) return NextResponse.json({ error: 'No business' }, { status: 400 })
+  const businessId = await ensureDefaultBusiness()
+  
 
   const body = await req.json()
 
@@ -51,7 +51,7 @@ export async function PUT(req: NextRequest) {
   const id = searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 })
 
-  const businessId = await getCurrentBusinessId()
+  const businessId = await ensureDefaultBusiness()
   const body = await req.json()
 
   if (body.isDefault) {

@@ -22,8 +22,8 @@ export async function GET() {
 
 // PUT /api/business — update business settings
 export async function PUT(req: NextRequest) {
-  const businessId = await getCurrentBusinessId()
-  if (!businessId) return NextResponse.json({ error: 'No business' }, { status: 400 })
+  const businessId = await ensureDefaultBusiness()
+  
 
   const body = await req.json()
   const allowed = [

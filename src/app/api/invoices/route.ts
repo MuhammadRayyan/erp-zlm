@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getCurrentBusinessId } from '@/lib/business-context'
+import { ensureDefaultBusiness } from '@/lib/business-context'
 import { postJournalEntry } from '@/lib/journal-service'
 import { calculateLine, calculateDocumentTotals, generateEInvoiceUuid } from '@/lib/vat-service'
 import { toNumber, money } from '@/lib/decimal'
 
 // GET /api/invoices?id=xxx (single) or list
 export async function GET(req: NextRequest) {
-  const businessId = await getCurrentBusinessId()
-  if (!businessId) return NextResponse.json({ error: 'No business' }, { status: 400 })
+  const businessId = await ensureDefaultBusiness()
+  
 
   const { searchParams } = new URL(req.url)
   const id = searchParams.get('id')
@@ -76,8 +76,8 @@ export async function GET(req: NextRequest) {
 
 // POST /api/invoices — create (and optionally post) invoice
 export async function POST(req: NextRequest) {
-  const businessId = await getCurrentBusinessId()
-  if (!businessId) return NextResponse.json({ error: 'No business' }, { status: 400 })
+  const businessId = await ensureDefaultBusiness()
+  
 
   const body = await req.json()
   const business = await db.business.findUnique({ where: { id: businessId } })
@@ -188,8 +188,8 @@ export async function POST(req: NextRequest) {
 
 // PUT /api/invoices?id=xxx — update (only if DRAFT)
 export async function PUT(req: NextRequest) {
-  const businessId = await getCurrentBusinessId()
-  if (!businessId) return NextResponse.json({ error: 'No business' }, { status: 400 })
+  const businessId = await ensureDefaultBusiness()
+  
 
   const { searchParams } = new URL(req.url)
   const id = searchParams.get('id')

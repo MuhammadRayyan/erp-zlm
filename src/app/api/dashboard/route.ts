@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getCurrentBusinessId } from '@/lib/business-context'
+import { ensureDefaultBusiness } from '@/lib/business-context'
 import { Decimal, money, toNumber } from '@/lib/decimal'
 
 // GET /api/dashboard — KPIs and recent activity
 export async function GET() {
-  const businessId = await getCurrentBusinessId()
-  if (!businessId) return NextResponse.json({ error: 'No business' }, { status: 400 })
+  const businessId = await ensureDefaultBusiness()
 
   const now = new Date()
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)

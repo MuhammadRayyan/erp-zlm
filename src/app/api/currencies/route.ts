@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getCurrentBusinessId } from '@/lib/business-context'
+import { ensureDefaultBusiness } from '@/lib/business-context'
 import { toNumber } from '@/lib/decimal'
 
 // GET /api/currencies
 export async function GET() {
-  const businessId = await getCurrentBusinessId()
-  if (!businessId) return NextResponse.json({ error: 'No business' }, { status: 400 })
+  const businessId = await ensureDefaultBusiness()
+  
 
   const currencies = await db.currency.findMany({
     where: { businessId },

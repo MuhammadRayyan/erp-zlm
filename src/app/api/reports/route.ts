@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getCurrentBusinessId } from '@/lib/business-context'
+import { ensureDefaultBusiness } from '@/lib/business-context'
 import { money, toNumber, Decimal } from '@/lib/decimal'
 
 // GET /api/reports?type=trial_balance|profit_loss|balance_sheet|vat_return|aged_receivables|aged_payables
 export async function GET(req: NextRequest) {
-  const businessId = await getCurrentBusinessId()
-  if (!businessId) return NextResponse.json({ error: 'No business' }, { status: 400 })
+  const businessId = await ensureDefaultBusiness()
+  
 
   const { searchParams } = new URL(req.url)
   const type = searchParams.get('type')

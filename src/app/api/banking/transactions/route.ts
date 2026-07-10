@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getCurrentBusinessId } from '@/lib/business-context'
 import { toNumber } from '@/lib/decimal'
 
 // GET /api/banking/transactions?accountId=xxx

@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getCurrentBusinessId } from '@/lib/business-context'
+import { ensureDefaultBusiness } from '@/lib/business-context'
 import { renderTemplate, wrapHtmlForPdf } from '@/lib/template-renderer'
 import { toNumber, money } from '@/lib/decimal'
 
 // POST /api/templates/preview — render template with real data
 export async function POST(req: NextRequest) {
-  const businessId = await getCurrentBusinessId()
-  if (!businessId) return NextResponse.json({ error: 'No business' }, { status: 400 })
+  const businessId = await ensureDefaultBusiness()
+  
 
   const body = await req.json()
   const { templateId, doctype, documentId, htmlContent, cssContent } = body

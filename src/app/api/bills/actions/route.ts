@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getCurrentBusinessId } from '@/lib/business-context'
+import { ensureDefaultBusiness } from '@/lib/business-context'
 import { postJournalEntry, reverseJournalEntry } from '@/lib/journal-service'
 import { money, toNumber } from '@/lib/decimal'
 
 // POST /api/bills/actions — { action: 'post' | 'void', id }
 export async function POST(req: NextRequest) {
-  const businessId = await getCurrentBusinessId()
-  if (!businessId) return NextResponse.json({ error: 'No business' }, { status: 400 })
+  const businessId = await ensureDefaultBusiness()
+  
 
   const body = await req.json()
   const { action, id } = body
