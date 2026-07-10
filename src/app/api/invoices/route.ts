@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { ensureDefaultBusiness } from '@/lib/business-context'
+import { ensureBusinessId, getCurrentTenantId, getSession } from '@/lib/auth'
 import { postJournalEntry } from '@/lib/journal-service'
 import { calculateLine, calculateDocumentTotals, generateEInvoiceUuid } from '@/lib/vat-service'
 import { toNumber, money } from '@/lib/decimal'
 
 // GET /api/invoices?id=xxx (single) or list
 export async function GET(req: NextRequest) {
-  const businessId = await ensureDefaultBusiness()
+  const businessId = await ensureBusinessId()
   
 
   const { searchParams } = new URL(req.url)
@@ -76,7 +76,7 @@ export async function GET(req: NextRequest) {
 
 // POST /api/invoices — create (and optionally post) invoice
 export async function POST(req: NextRequest) {
-  const businessId = await ensureDefaultBusiness()
+  const businessId = await ensureBusinessId()
   
 
   const body = await req.json()
@@ -99,10 +99,9 @@ export async function POST(req: NextRequest) {
   // Generate invoice number
   const number = `${business.invoicePrefix}${String(business.nextInvoiceNumber).padStart(6, '0')}`
 
-  let user = await db.user.findFirst()
-  if (!user) {
-    user = await db.user.create({ data: { email: 'admin@local', name: 'Admin', role: 'ADMIN' } })
-  }
+  const session = await getSession()
+  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+  const user = { id: session.userId, name: session.name, email: session.email }
 
   // Create invoice
   const invoice = await db.salesInvoice.create({
@@ -188,7 +187,7 @@ export async function POST(req: NextRequest) {
 
 // PUT /api/invoices?id=xxx — update (only if DRAFT)
 export async function PUT(req: NextRequest) {
-  const businessId = await ensureDefaultBusiness()
+  const businessId = await ensureBusinessId()
   
 
   const { searchParams } = new URL(req.url)

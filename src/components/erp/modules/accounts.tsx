@@ -13,7 +13,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Plus, Pencil, Trash2, ListTree, FolderTree } from 'lucide-react'
 import { ACCOUNT_TYPES, ACCOUNT_SUBTYPES } from '@/lib/constants'
-import { fmtMoney, fmtNumber, LoadingSpinner, EmptyState, useFetch } from '../shared/ui-helpers'
+import { fmtMoney, fmtNumber, LoadingSpinner, EmptyState, useFetch, useBusiness } from '../shared/ui-helpers'
 import type { ModuleProps } from '../app-shell'
 import { toast } from 'sonner'
 
@@ -33,7 +33,8 @@ interface Account {
   hasTransactions: boolean
 }
 
-export function AccountsModule({ business }: ModuleProps) {
+export function AccountsModule(_props: ModuleProps) {
+  const { business } = useBusiness()
   const { data: accounts, loading, refetch } = useFetch<Account[]>('/api/accounts')
   const [showForm, setShowForm] = React.useState(false)
   const [editing, setEditing] = React.useState<Account | null>(null)

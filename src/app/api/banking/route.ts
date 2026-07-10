@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { ensureDefaultBusiness } from '@/lib/business-context'
+import { ensureBusinessId, getCurrentTenantId } from '@/lib/auth'
 import { toNumber } from '@/lib/decimal'
 
 // GET /api/banking — bank accounts
 export async function GET(req: NextRequest) {
-  const businessId = await ensureDefaultBusiness()
+  const businessId = await ensureBusinessId()
   
 
   const accounts = await db.bankAccount.findMany({
@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
 
 // POST
 export async function POST(req: NextRequest) {
-  const businessId = await ensureDefaultBusiness()
+  const businessId = await ensureBusinessId()
   
 
   const body = await req.json()

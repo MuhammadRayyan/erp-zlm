@@ -9,11 +9,12 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Plus, Trash2, Save } from 'lucide-react'
-import { fmtMoney, fmtDate, StatusBadge, LoadingSpinner, EmptyState, useFetch, PageHeader } from '../shared/ui-helpers'
+import { fmtMoney, fmtDate, StatusBadge, LoadingSpinner, EmptyState, useFetch, PageHeader, useBusiness } from '../shared/ui-helpers'
 import type { ModuleProps } from '../app-shell'
 import { toast } from 'sonner'
 
-export function CreditNotesModule({ business, navigate, searchParams }: ModuleProps) {
+export function CreditNotesModule({ navigate, searchParams }: ModuleProps) {
+  const { business } = useBusiness()
   const action = searchParams.get('action')
   if (action === 'new') return <CreditNoteForm business={business} navigate={navigate} />
   return <CreditNoteList business={business} navigate={navigate} />
@@ -38,7 +39,8 @@ function CreditNoteList({ navigate }: ModuleProps) {
   )
 }
 
-function CreditNoteForm({ business, navigate }: ModuleProps) {
+function CreditNoteForm({ navigate }: ModuleProps) {
+  const { business } = useBusiness()
   const { data: parties } = useFetch<{ id: string; name: string }[]>('/api/parties?type=CUSTOMER')
   const [form, setForm] = React.useState({
     partyId: '', date: new Date().toISOString().split('T')[0], reason: '', notes: '',

@@ -9,12 +9,13 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Printer, FileBarChart, TrendingUp, Scale, Receipt, BookOpen } from 'lucide-react'
-import { fmtMoney, fmtDate, LoadingSpinner } from '../shared/ui-helpers'
+import { fmtMoney, fmtDate, LoadingSpinner, useBusiness } from '../shared/ui-helpers'
 import type { ModuleProps } from '../app-shell'
 
 type ReportData = Record<string, unknown>
 
-export function ReportsModule({ business }: ModuleProps) {
+export function ReportsModule(_props: ModuleProps) {
+  const { business } = useBusiness()
   const [reportType, setReportType] = React.useState('trial_balance')
   const [startDate, setStartDate] = React.useState(new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0])
   const [endDate, setEndDate] = React.useState(new Date().toISOString().split('T')[0])

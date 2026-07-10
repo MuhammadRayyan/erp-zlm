@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { ensureDefaultBusiness } from '@/lib/business-context'
+import { ensureBusinessId, getCurrentTenantId } from '@/lib/auth'
 import { money, toNumber, Decimal } from '@/lib/decimal'
 
 // GET /api/reports?type=trial_balance|profit_loss|balance_sheet|vat_return|aged_receivables|aged_payables
 export async function GET(req: NextRequest) {
-  const businessId = await ensureDefaultBusiness()
+  const businessId = await ensureBusinessId()
   
 
   const { searchParams } = new URL(req.url)
@@ -54,11 +54,11 @@ async function trialBalance(businessId: string, asOf: Date) {
     const debit = a.journalLines.reduce((s, l) => s.plus(money(l.debit)), money(0))
     const credit = a.journalLines.reduce((s, l) => s.plus(money(l.credit)), money(0))
     const balance = debit.minus(credit)
-    const isDebitType = a.type === 'ASSET' || a.type === 'EXPENSE'
+    // A positive balance = debit balance, negative = credit balance
     return {
       code: a.code, name: a.name, type: a.type, subtype: a.subtype,
-      debit: isDebitType ? toNumber(balance.abs()) : 0,
-      credit: !isDebitType && balance.lt(0) ? toNumber(balance.abs()) : 0,
+      debit: balance.gt(0) ? toNumber(balance.abs()) : 0,
+      credit: balance.lt(0) ? toNumber(balance.abs()) : 0,
       balance: toNumber(balance),
     }
   }).filter(r => r.balance !== 0 || r.debit !== 0 || r.credit !== 0)

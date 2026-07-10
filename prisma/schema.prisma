@@ -1,6 +1,7 @@
-// AccountERP — Complete Prisma Schema
+// AccountERP — Complete Prisma Schema (Multi-Tenant SaaS Edition)
 // UAE-compliant double-entry accounting ERP
 // Database: SQLite (dev) / PostgreSQL (prod) — switchable via DATABASE_URL
+// Tenant isolation: row-level via tenantId on all business-scoped tables
 
 generator client {
   provider = "prisma-client-js"
@@ -12,7 +13,7 @@ datasource db {
 }
 
 // ============================================================
-// CORE / MULTI-TENANT
+// PLATFORM LEVEL (shared, no tenant scoping)
 // ============================================================
 
 model User {
@@ -20,20 +21,120 @@ model User {
   email         String   @unique
   name          String
   passwordHash  String?
-  role          String   @default("ADMIN") // ADMIN, ACCOUNTANT, VIEWER
+  role          String   @default("USER") // PLATFORM_ADMIN, USER
+  isActive      Boolean  @default(true)
+  lastLoginAt   DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  businesses    UserBusiness[]
-  journalEntries JournalEntry[]  @relation("JournalEntryCreatedBy")
-  invoices       SalesInvoice[]  @relation("InvoiceCreatedBy")
-  bills          PurchaseBill[]  @relation("BillCreatedBy")
-  payments       Payment[]       @relation("PaymentCreatedBy")
-  auditLogs      AuditLog[]
+  tenantMemberships UserTenant[]
+  journalEntries    JournalEntry[]  @relation("JournalEntryCreatedBy")
+  invoices          SalesInvoice[]  @relation("InvoiceCreatedBy")
+  bills             PurchaseBill[]  @relation("BillCreatedBy")
+  payments          Payment[]       @relation("PaymentCreatedBy")
+  auditLogs         AuditLog[]
+  activities        ActivityLog[]
 }
+
+// A Tenant = a customer organization that bought a license/subscription
+model Tenant {
+  id            String   @id @default(cuid())
+  name          String   // organization name
+  slug          String   @unique // URL-friendly identifier
+  email         String   // billing contact
+  phone         String?
+  status        String   @default("ACTIVE") // ACTIVE, SUSPENDED, TRIAL, CANCELLED
+  trialEndsAt   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  subscription  Subscription?
+  members       UserTenant[]
+  businesses    Business[]
+  auditLogs     AuditLog[]
+}
+
+// A user's membership in a tenant, with a role
+model UserTenant {
+  id         String   @id @default(cuid())
+  userId     String
+  tenantId   String
+  role       String   @default("ACCOUNTANT") // TENANT_ADMIN, ACCOUNTANT, VIEWER
+  isActive   Boolean  @default(true)
+  invitedAt  DateTime @default(now())
+  joinedAt   DateTime?
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tenantId])
+  @@index([tenantId])
+}
+
+// Subscription plans define limits and features
+model Plan {
+  id              String   @id @default(cuid())
+  name            String   @unique // Free, Starter, Professional, Enterprise
+  description     String?
+  maxBusinesses   Int      @default(1)
+  maxUsers        Int      @default(2)
+  maxInvoicesPerMonth Int  @default(100) // 0 = unlimited
+  priceMonthly    Decimal  @default(0)
+  priceYearly     Decimal  @default(0)
+  features        String   @default("{}") // JSON: { eInvoicing: true, api: false, ... }
+  isActive        Boolean  @default(true)
+  isPublic        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+
+  subscriptions   Subscription[]
+}
+
+// A tenant's subscription to a plan
+model Subscription {
+  id              String   @id @default(cuid())
+  tenantId        String   @unique
+  planId          String
+  status          String   @default("TRIAL") // TRIAL, ACTIVE, PAST_DUE, CANCELLED, PAUSED
+  billingCycle    String   @default("MONTHLY") // MONTHLY, YEARLY
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+  trialEndsAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  plan            Plan     @relation(fields: [planId], references: [id])
+
+  @@index([planId])
+}
+
+// Licenses for self-hosted / offline deployments
+model License {
+  id            String   @id @default(cuid())
+  key           String   @unique
+  tenantId      String?  // null = unassigned
+  planName      String
+  type          String   @default("ANNUAL") // LIFETIME, ANNUAL, MONTHLY
+  maxBusinesses Int      @default(1)
+  maxUsers      Int      @default(2)
+  issuedTo      String?  // customer email
+  issuedAt      DateTime @default(now())
+  expiresAt     DateTime?
+  status        String   @default("ACTIVE") // ACTIVE, EXPIRED, REVOKED, SUSPENDED
+  notes         String?
+  createdAt     DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([status])
+}
+
+// ============================================================
+// BUSINESS LEVEL (tenant-scoped via tenantId)
+// ============================================================
 
 model Business {
   id              String   @id @default(cuid())
+  tenantId        String
   name            String
   legalName       String?
   trn             String?  // UAE Tax Registration Number (15 digits)
@@ -47,9 +148,8 @@ model Business {
   postalCode      String?
   country         String   @default("AE")
   baseCurrency    String   @default("AED")
-  fiscalYearStart String   @default("01-01") // MM-DD
+  fiscalYearStart String   @default("01-01")
   logoUrl         String?
-  taxNumber       String?  // alias for TRN
   vatRegistered   Boolean  @default(true)
   vatRate         Decimal  @default(5.00)
   invoicePrefix   String   @default("INV-")
@@ -69,7 +169,7 @@ model Business {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  users           UserBusiness[]
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   accounts        Account[]
   parties         Party[]
   journalEntries  JournalEntry[]
@@ -88,20 +188,9 @@ model Business {
   auditLogs       AuditLog[]
   warehouses      Warehouse[]
   stockMovements  StockMovement[]
-}
+  activities      ActivityLog[]
 
-model UserBusiness {
-  id         String   @id @default(cuid())
-  userId     String
-  businessId String
-  role       String   @default("ADMIN")
-  createdAt  DateTime @default(now())
-
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, businessId])
-  @@index([businessId])
+  @@index([tenantId])
 }
 
 // ============================================================
@@ -109,26 +198,26 @@ model UserBusiness {
 // ============================================================
 
 model Account {
-  id          String   @id @default(cuid())
-  businessId  String
-  code        String   // e.g., "1000", "1000.01"
-  name        String
-  nameAr      String?
-  type        String   // ASSET, LIABILITY, EQUITY, INCOME, EXPENSE
-  subtype     String?  // CURRENT_ASSET, FIXED_ASSET, CURRENT_LIABILITY, etc.
-  parentId    String?
-  description String?
-  isControl   Boolean  @default(false) // control account (AR, AP)
-  isSystem    Boolean  @default(false) // cannot be deleted
-  isActive    Boolean  @default(true)
+  id            String   @id @default(cuid())
+  businessId    String
+  code          String
+  name          String
+  nameAr        String?
+  type          String   // ASSET, LIABILITY, EQUITY, INCOME, EXPENSE
+  subtype       String?
+  parentId      String?
+  description   String?
+  isControl     Boolean  @default(false)
+  isSystem      Boolean  @default(false)
+  isActive      Boolean  @default(true)
   openingBalance Decimal @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  business    Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  parent      Account?  @relation("AccountHierarchy", fields: [parentId], references: [id])
-  children    Account[] @relation("AccountHierarchy")
-  journalLines JournalLine[]
+  business      Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  parent        Account?  @relation("AccountHierarchy", fields: [parentId], references: [id])
+  children      Account[] @relation("AccountHierarchy")
+  journalLines  JournalLine[]
 
   @@unique([businessId, code])
   @@index([businessId, type])
@@ -142,12 +231,12 @@ model Account {
 model JournalEntry {
   id          String   @id @default(cuid())
   businessId  String
-  number      String   // sequential journal number
+  number      String
   date        DateTime
-  reference   String?  // source document reference
+  reference   String?
   description String?
   sourceType  String?  // SALES_INVOICE, PURCHASE_BILL, PAYMENT, MANUAL, etc.
-  sourceId    String?  // ID of source document
+  sourceId    String?
   isPosted    Boolean  @default(false)
   postedAt    DateTime?
   isReversed  Boolean  @default(false)
@@ -172,7 +261,7 @@ model JournalLine {
   debit         Decimal  @default(0)
   credit        Decimal  @default(0)
   description   String?
-  partyId       String?  // link to party for AR/AP tracking
+  partyId       String?
   party         Party?   @relation(fields: [partyId], references: [id])
   createdAt     DateTime @default(now())
 
@@ -190,11 +279,11 @@ model JournalLine {
 model Party {
   id            String   @id @default(cuid())
   businessId    String
-  code          String?  // customer/supplier code
+  code          String?
   name          String
   nameAr        String?
-  type          String   @default("CUSTOMER") // CUSTOMER, SUPPLIER, BOTH
-  trn           String?  // UAE TRN (15 digits)
+  type          String   @default("CUSTOMER")
+  trn           String?
   email         String?
   phone         String?
   website       String?
@@ -202,7 +291,7 @@ model Party {
   billingAddress1   String?
   billingAddress2   String?
   billingCity       String?
-  billingState      String?  // Emirate
+  billingState      String?
   billingPostalCode String?
   billingCountry    String   @default("AE")
   shippingAddress1  String?
@@ -211,13 +300,13 @@ model Party {
   shippingState     String?
   shippingPostalCode String?
   shippingCountry   String   @default("AE")
-  paymentTerms  Int      @default(30) // days
+  paymentTerms  Int      @default(30)
   creditLimit   Decimal  @default(0)
-  openingBalance Decimal @default(0) // positive = they owe us
-  openingBalanceType String @default("DEBIT") // DEBIT (receivable) or CREDIT (payable)
+  openingBalance Decimal @default(0)
+  openingBalanceType String @default("DEBIT")
   notes         String?
   isActive      Boolean  @default(true)
-  customFields  String?  // JSON
+  customFields  String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -243,13 +332,13 @@ model TaxRate {
   businessId  String
   name        String
   nameAr      String?
-  rate        Decimal  // 5.00, 0.00
-  category    String   // STANDARD_RATED, ZERO_RATED, EXEMPT, OUT_OF_SCOPE
+  rate        Decimal
+  category    String
   isDefault   Boolean  @default(false)
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
 
-  business    Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  business      Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
   invoiceLines SalesInvoiceLine[]
   billLines    PurchaseBillLine[]
   quotationLines QuotationLine[]
@@ -259,17 +348,17 @@ model TaxRate {
 }
 
 // ============================================================
-// CURRENCIES & EXCHANGE RATES
+// CURRENCIES
 // ============================================================
 
 model Currency {
   id          String   @id @default(cuid())
   businessId  String
-  code        String   // AED, USD, EUR
+  code        String
   name        String
   symbol      String
   isBase      Boolean  @default(false)
-  exchangeRate Decimal @default(1) // rate to base currency
+  exchangeRate Decimal @default(1)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -289,7 +378,7 @@ model SalesInvoice {
   date          DateTime
   dueDate       DateTime
   partyId       String
-  reference     String?  // PO number, etc.
+  reference     String?
   currency      String   @default("AED")
   exchangeRate  Decimal  @default(1)
   subtotal      Decimal  @default(0)
@@ -297,12 +386,12 @@ model SalesInvoice {
   totalTax      Decimal  @default(0)
   total         Decimal  @default(0)
   amountPaid    Decimal  @default(0)
-  status        String   @default("DRAFT") // DRAFT, POSTED, PAID, PARTIALLY_PAID, OVERDUE, VOID
+  status        String   @default("DRAFT")
   notes         String?
   terms         String?
-  customFields  String?  // JSON
-  einvoiceUuid  String?  // PINT AE UUID
-  einvoiceXml   String?  // generated UBL XML
+  customFields  String?
+  einvoiceUuid  String?
+  einvoiceXml   String?
   postedAt      DateTime?
   createdById   String
   createdAt     DateTime @default(now())
@@ -325,13 +414,13 @@ model SalesInvoiceLine {
   invoiceId     String
   itemId        String?
   description   String
-  quantity      Decimal 
-  unitPrice     Decimal 
-  discount      Decimal  @default(0) // percentage
+  quantity      Decimal
+  unitPrice     Decimal
+  discount      Decimal  @default(0)
   position      Int      @default(0)
   taxRateId     String?
   taxRate       TaxRate?       @relation(fields: [taxRateId], references: [id])
-  lineTotal     Decimal  // (qty * price) - discount
+  lineTotal     Decimal
   lineTax       Decimal  @default(0)
 
   invoice       SalesInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
@@ -384,13 +473,13 @@ model PurchaseBillLine {
   billId        String
   itemId        String?
   description   String
-  quantity      Decimal 
-  unitPrice     Decimal 
+  quantity      Decimal
+  unitPrice     Decimal
   discount      Decimal  @default(0)
   position      Int      @default(0)
   taxRateId     String?
   taxRate       TaxRate?       @relation(fields: [taxRateId], references: [id])
-  lineTotal     Decimal 
+  lineTotal     Decimal
   lineTax       Decimal  @default(0)
 
   bill          PurchaseBill @relation(fields: [billId], references: [id], onDelete: Cascade)
@@ -415,7 +504,7 @@ model Quotation {
   totalDiscount Decimal  @default(0)
   totalTax      Decimal  @default(0)
   total         Decimal  @default(0)
-  status        String   @default("DRAFT") // DRAFT, SENT, ACCEPTED, REJECTED, EXPIRED, CONVERTED
+  status        String   @default("DRAFT")
   notes         String?
   terms         String?
   customFields  String?
@@ -436,13 +525,13 @@ model QuotationLine {
   quotationId   String
   itemId        String?
   description   String
-  quantity      Decimal 
-  unitPrice     Decimal 
+  quantity      Decimal
+  unitPrice     Decimal
   discount      Decimal  @default(0)
   position      Int      @default(0)
   taxRateId     String?
   taxRate       TaxRate?       @relation(fields: [taxRateId], references: [id])
-  lineTotal     Decimal 
+  lineTotal     Decimal
   lineTax       Decimal  @default(0)
 
   quotation     Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
@@ -483,12 +572,12 @@ model CreditNoteLine {
   id            String   @id @default(cuid())
   creditNoteId  String
   description   String
-  quantity      Decimal 
-  unitPrice     Decimal 
+  quantity      Decimal
+  unitPrice     Decimal
   position      Int      @default(0)
   taxRateId     String?
   taxRate       TaxRate?       @relation(fields: [taxRateId], references: [id])
-  lineTotal     Decimal 
+  lineTotal     Decimal
   lineTax       Decimal  @default(0)
 
   creditNote    CreditNote @relation(fields: [creditNoteId], references: [id], onDelete: Cascade)
@@ -506,7 +595,7 @@ model DeliveryNote {
   partyId       String
   invoiceId     String?
   reference     String?
-  status        String   @default("DRAFT") // DRAFT, DELIVERED, CANCELLED
+  status        String   @default("DRAFT")
   notes         String?
   customFields  String?
   createdAt     DateTime @default(now())
@@ -524,14 +613,14 @@ model DeliveryNoteLine {
   deliveryNoteId String
   itemId        String?
   description   String
-  quantity      Decimal 
+  quantity      Decimal
   position      Int      @default(0)
 
   deliveryNote  DeliveryNote @relation(fields: [deliveryNoteId], references: [id], onDelete: Cascade)
 }
 
 // ============================================================
-// PAYMENTS (Receipts & Payments)
+// PAYMENTS
 // ============================================================
 
 model Payment {
@@ -539,13 +628,13 @@ model Payment {
   businessId    String
   number        String
   date          DateTime
-  type          String   // RECEIPT (from customer), PAYMENT (to supplier)
+  type          String   // RECEIPT, PAYMENT
   partyId       String
-  amount        Decimal 
+  amount        Decimal
   currency      String   @default("AED")
   exchangeRate  Decimal  @default(1)
-  method        String   @default("CASH") // CASH, CHEQUE, BANK_TRANSFER, CARD, ONLINE
-  reference     String?  // cheque no, transaction id
+  method        String   @default("CASH")
+  reference     String?
   bankAccountId String?
   description   String?
   status        String   @default("POSTED")
@@ -569,7 +658,7 @@ model PaymentAllocation {
   paymentId     String
   invoiceId     String?
   billId        String?
-  amount        Decimal 
+  amount        Decimal
 
   payment       Payment       @relation(fields: [paymentId], references: [id], onDelete: Cascade)
   invoice       SalesInvoice? @relation(fields: [invoiceId], references: [id])
@@ -587,11 +676,11 @@ model Item {
   name          String
   nameAr        String?
   description   String?
-  unit          String   @default("PCS") // PCS, KG, LTR, HR, etc.
+  unit          String   @default("PCS")
   category      String?
   salePrice     Decimal  @default(0)
   purchasePrice Decimal  @default(0)
-  costMethod    String   @default("WEIGHTED_AVG") // FIFO, WEIGHTED_AVG
+  costMethod    String   @default("WEIGHTED_AVG")
   stockQty      Decimal  @default(0)
   reorderLevel  Decimal  @default(0)
   taxRateId     String?
@@ -626,14 +715,14 @@ model StockMovement {
   businessId    String
   itemId        String
   warehouseId   String?
-  type          String   // PURCHASE, SALE, ADJUSTMENT, TRANSFER, RETURN
-  direction     String   // IN, OUT
-  quantity      Decimal 
+  type          String
+  direction     String
+  quantity      Decimal
   unitCost      Decimal  @default(0)
-  reference     String?  // source doc number
-  referenceType String?  // SALES_INVOICE, PURCHASE_BILL, etc.
+  reference     String?
+  referenceType String?
   referenceId   String?
-  balanceAfter  Decimal 
+  balanceAfter  Decimal
   date          DateTime
   createdAt     DateTime @default(now())
 
@@ -657,7 +746,6 @@ model BankAccount {
   bankName      String?
   branch        String?
   iban          String?
-  accountId     String?  // linked GL account
   openingBalance Decimal @default(0)
   currentBalance Decimal @default(0)
   currency      String   @default("AED")
@@ -675,8 +763,8 @@ model BankTransaction {
   date          DateTime
   description   String?
   reference     String?
-  amount        Decimal  // positive = deposit, negative = withdrawal
-  type          String   @default("DEPOSIT") // DEPOSIT, WITHDRAWAL, FEE, INTEREST
+  amount        Decimal
+  type          String   @default("DEPOSIT")
   isReconciled  Boolean  @default(false)
   reconciledAt  DateTime?
   paymentId     String?
@@ -695,14 +783,14 @@ model BankTransaction {
 model CustomFieldDefinition {
   id            String   @id @default(cuid())
   businessId    String
-  doctype       String   // SALES_INVOICE, PURCHASE_BILL, PARTY, ITEM, etc.
-  tab           String   @default("General") // tab name
-  section       String   @default("Details") // section name
-  fieldKey      String   // internal key
+  doctype       String
+  tab           String   @default("General")
+  section       String   @default("Details")
+  fieldKey      String
   label         String
   labelAr       String?
-  type          String   // TEXT, NUMBER, DECIMAL, DATE, SELECT, CHECKBOX, TEXTAREA, LINK
-  options       String?  // JSON: for SELECT choices, LINK target, etc.
+  type          String
+  options       String?
   defaultValue  String?
   isRequired    Boolean  @default(false)
   isVisible     Boolean  @default(true)
@@ -723,11 +811,11 @@ model PdfTemplate {
   id            String   @id @default(cuid())
   businessId    String
   name          String
-  doctype       String   // SALES_INVOICE, PURCHASE_BILL, QUOTATION, CREDIT_NOTE, DELIVERY_NOTE, STATEMENT
-  htmlContent   String   // HTML template with placeholders
-  cssContent    String   // CSS styles
+  doctype       String
+  htmlContent   String
+  cssContent    String
   isDefault     Boolean  @default(false)
-  isSystem      Boolean  @default(false) // built-in, cannot be deleted
+  isSystem      Boolean  @default(false)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -744,24 +832,48 @@ model PdfTemplate {
 model AuditLog {
   id            String   @id @default(cuid())
   businessId    String
+  tenantId      String
   userId        String?
-  action        String   // CREATE, UPDATE, DELETE, POST, VOID
-  entityType    String   // SALES_INVOICE, JOURNAL_ENTRY, etc.
+  action        String
+  entityType    String
   entityId      String
   description   String?
-  changes       String?  // JSON of before/after
+  changes       String?
   ipAddress     String?
   createdAt     DateTime @default(now())
 
   business      Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   user          User?    @relation(fields: [userId], references: [id])
 
   @@index([businessId, entityType, entityId])
-  @@index([businessId, createdAt])
+  @@index([tenantId, createdAt])
 }
 
 // ============================================================
-// APP SETTINGS (single-tenant config)
+// ACTIVITY LOG (document-level chatter, inspired by Odoo/Frappe)
+// ============================================================
+
+model ActivityLog {
+  id            String   @id @default(cuid())
+  businessId    String
+  userId        String
+  entityType    String   // SALES_INVOICE, PURCHASE_BILL, etc.
+  entityId      String
+  action        String   // CREATED, UPDATED, POSTED, COMMENTED, EMAILED
+  message       String
+  metadata      String?  // JSON
+  createdAt     DateTime @default(now())
+
+  business      Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user          User     @relation(fields: [userId], references: [id])
+
+  @@index([businessId, entityType, entityId])
+  @@index([createdAt])
+}
+
+// ============================================================
+// APP SETTINGS
 // ============================================================
 
 model AppSetting {

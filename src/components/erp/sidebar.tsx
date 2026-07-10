@@ -1,11 +1,11 @@
 'use client'
 
 import * as React from 'react'
-import Link from 'next/link'
 import { NAV_GROUPS } from '@/lib/nav'
-import { LayoutDashboard, FileText, Receipt, FileMinus, Truck, Users, ShoppingCart, Building2, CreditCard, Landmark, ListTree, BookOpen, BarChart3, Package, FileEdit, Settings2, Settings, ChevronLeft, Calculator } from 'lucide-react'
+import { LayoutDashboard, FileText, Receipt, FileMinus, Truck, Users, ShoppingCart, Building2, CreditCard, Landmark, ListTree, BookOpen, BarChart3, Package, FileEdit, Settings2, Settings, ChevronLeft, Calculator, Shield, UserCog, LogOut } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import type { AuthState } from './app-shell'
 
 const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   LayoutDashboard, FileText, Receipt, FileMinus, Truck, Users, ShoppingCart, Building2,
@@ -15,10 +15,40 @@ const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
 interface SidebarProps {
   activeModule: string
   onNavigate: (m: string) => void
+  auth: AuthState
+  onLogout: () => void
 }
 
-export function Sidebar({ activeModule, onNavigate }: SidebarProps) {
+export function Sidebar({ activeModule, onNavigate, auth, onLogout }: SidebarProps) {
   const [collapsed, setCollapsed] = React.useState(false)
+  const isPlatformAdmin = auth.user.role === 'PLATFORM_ADMIN'
+
+  // Build nav groups based on role
+  const groups = [...NAV_GROUPS]
+
+  // Add admin section for platform admin
+  if (isPlatformAdmin) {
+    groups.push({
+      group: 'Administration',
+      items: [
+        { id: 'admin-portal', label: 'Platform Admin', icon: 'Shield', group: 'Administration' },
+        { id: 'tenant-portal', label: 'Tenant Settings', icon: 'UserCog', group: 'Administration' },
+      ],
+    })
+  } else {
+    // Tenant admin sees tenant portal
+    groups.push({
+      group: 'Administration',
+      items: [
+        { id: 'tenant-portal', label: 'Organization Settings', icon: 'UserCog', group: 'Administration' },
+      ],
+    })
+  }
+
+  const handleLogout = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' })
+    onLogout()
+  }
 
   return (
     <aside className={cn(
@@ -31,64 +61,79 @@ export function Sidebar({ activeModule, onNavigate }: SidebarProps) {
           <Calculator className="h-5 w-5" />
         </div>
         {!collapsed && (
-          <div className="flex flex-col">
+          <div className="flex flex-col flex-1 min-w-0">
             <span className="text-sm font-bold tracking-tight">AccountERP</span>
-            <span className="text-[10px] text-muted-foreground">UAE Edition</span>
+            <span className="text-[10px] text-muted-foreground truncate">
+              {auth.currentBusinessName || auth.tenants[0]?.name || 'No Business'}
+            </span>
           </div>
         )}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="ml-auto h-7 w-7"
-          onClick={() => setCollapsed(!collapsed)}
-        >
+        <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => setCollapsed(!collapsed)}>
           <ChevronLeft className={cn("h-4 w-4 transition-transform", collapsed && "rotate-180")} />
         </Button>
       </div>
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-3">
-        {NAV_GROUPS.map(group => (
-          <div key={group.group} className="mb-1">
-            {!collapsed && (
-              <div className="px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
-                {group.group}
-              </div>
-            )}
-            {group.items.map(item => {
-              const Icon = ICONS[item.icon] || LayoutDashboard
-              const isActive = activeModule === item.id
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => onNavigate(item.id)}
-                  className={cn(
-                    "flex w-full items-center gap-3 px-3 py-2 text-sm font-medium transition-colors",
-                    "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                    isActive && "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400",
-                    collapsed && "justify-center px-2",
-                    !isActive && "text-sidebar-foreground/80"
-                  )}
-                  title={collapsed ? item.label : undefined}
-                >
-                  <Icon className="h-4 w-4 shrink-0" />
-                  {!collapsed && <span className="truncate">{item.label}</span>}
-                </button>
-              )
-            })}
-          </div>
-        ))}
+        {groups.map(group => {
+          // Hide some groups for viewers
+          if (auth.currentTenantRole === 'VIEWER' && group.group === 'System') return null
+          return (
+            <div key={group.group} className="mb-1">
+              {!collapsed && (
+                <div className="px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                  {group.group}
+                </div>
+              )}
+              {group.items.map(item => {
+                const Icon = ICONS[item.icon] || LayoutDashboard
+                const isActive = activeModule === item.id
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => onNavigate(item.id)}
+                    className={cn(
+                      "flex w-full items-center gap-3 px-3 py-2 text-sm font-medium transition-colors",
+                      "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                      isActive && "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400",
+                      collapsed && "justify-center px-2",
+                      !isActive && "text-sidebar-foreground/80"
+                    )}
+                    title={collapsed ? item.label : undefined}
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    {!collapsed && <span className="truncate">{item.label}</span>}
+                  </button>
+                )
+              })}
+            </div>
+          )
+        })}
       </nav>
 
-      {/* Footer */}
-      {!collapsed && (
-        <div className="border-t p-3">
-          <div className="rounded-lg bg-emerald-50 p-3 text-xs dark:bg-emerald-950/30">
-            <p className="font-semibold text-emerald-700 dark:text-emerald-400">VAT Compliant</p>
-            <p className="mt-0.5 text-muted-foreground">UAE FTA • 5% Standard Rate</p>
+      {/* User info & logout */}
+      <div className="border-t p-3">
+        {!collapsed ? (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 rounded-lg bg-muted/50 p-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500 text-xs font-bold text-white">
+                {auth.user.name.charAt(0).toUpperCase()}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium truncate">{auth.user.name}</p>
+                <p className="text-[10px] text-muted-foreground truncate">{auth.user.email}</p>
+              </div>
+            </div>
+            <Button variant="ghost" size="sm" className="w-full justify-start text-xs text-red-600 hover:text-red-700" onClick={handleLogout}>
+              <LogOut className="mr-2 h-3.5 w-3.5" /> Logout
+            </Button>
           </div>
-        </div>
-      )}
+        ) : (
+          <Button variant="ghost" size="icon" className="w-full text-red-600" onClick={handleLogout} title="Logout">
+            <LogOut className="h-4 w-4" />
+          </Button>
+        )}
+      </div>
     </aside>
   )
 }

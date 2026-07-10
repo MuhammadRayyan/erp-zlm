@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Plus, Trash2, Save, Send, ArrowLeft, Printer, FileText, Search } from 'lucide-react'
-import { fmtMoney, fmtDate, fmtNumber, StatusBadge, LoadingSpinner, EmptyState, useFetch, PageHeader } from '../shared/ui-helpers'
+import { fmtMoney, fmtDate, fmtNumber, StatusBadge, LoadingSpinner, EmptyState, useFetch, PageHeader, useBusiness } from '../shared/ui-helpers'
 import type { ModuleProps } from '../app-shell'
 import { toast } from 'sonner'
 
@@ -49,7 +49,8 @@ interface InvoiceLine {
 interface Party { id: string; name: string }
 interface TaxRate { id: string; name: string; rate: number; category: string }
 
-export function InvoicesModule({ business, navigate, searchParams }: ModuleProps) {
+export function InvoicesModule({ navigate, searchParams }: ModuleProps) {
+  const { business } = useBusiness()
   const action = searchParams.get('action')
   const editId = searchParams.get('id')
 
@@ -143,7 +144,8 @@ function InvoiceList({ navigate }: ModuleProps) {
   )
 }
 
-function InvoiceForm({ business, navigate, editId }: ModuleProps & { editId?: string }) {
+function InvoiceForm({ navigate, editId }: ModuleProps & { editId?: string }) {
+  const { business } = useBusiness()
   const { data: parties } = useFetch<Party[]>('/api/parties?type=CUSTOMER')
   const { data: taxRates } = useFetch<TaxRate[]>('/api/tax-rates')
   const { data: items } = useFetch<{ id: string; name: string; sku: string; salePrice: number; description: string | null }[]>('/api/items')
@@ -422,7 +424,8 @@ function InvoiceForm({ business, navigate, editId }: ModuleProps & { editId?: st
   )
 }
 
-function InvoiceView({ business, navigate, id }: ModuleProps & { id: string }) {
+function InvoiceView({ navigate, id }: ModuleProps & { id: string }) {
+  const { business } = useBusiness()
   const { data: invoice, loading } = useFetch<Invoice>(`/api/invoices?id=${id}`, [id])
   const [showPdf, setShowPdf] = React.useState(false)
 

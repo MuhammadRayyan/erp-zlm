@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Plus, Trash2, Save, Send, ArrowLeft, Search } from 'lucide-react'
-import { fmtMoney, fmtDate, fmtNumber, StatusBadge, LoadingSpinner, EmptyState, useFetch, PageHeader } from '../shared/ui-helpers'
+import { fmtMoney, fmtDate, fmtNumber, StatusBadge, LoadingSpinner, EmptyState, useFetch, PageHeader, useBusiness } from '../shared/ui-helpers'
 import type { ModuleProps } from '../app-shell'
 import { toast } from 'sonner'
 
@@ -23,7 +23,8 @@ interface Bill {
 interface Party { id: string; name: string }
 interface TaxRate { id: string; name: string; rate: number }
 
-export function BillsModule({ business, navigate, searchParams }: ModuleProps) {
+export function BillsModule({ navigate, searchParams }: ModuleProps) {
+  const { business } = useBusiness()
   const action = searchParams.get('action')
   const editId = searchParams.get('id')
   if (action === 'new') return <BillForm business={business} navigate={navigate} />
@@ -78,7 +79,8 @@ function BillList({ navigate }: ModuleProps) {
   )
 }
 
-function BillForm({ business, navigate }: ModuleProps) {
+function BillForm({ navigate }: ModuleProps) {
+  const { business } = useBusiness()
   const { data: parties } = useFetch<Party[]>('/api/parties?type=SUPPLIER')
   const { data: taxRates } = useFetch<TaxRate[]>('/api/tax-rates')
   const [form, setForm] = React.useState({
@@ -160,7 +162,8 @@ function BillForm({ business, navigate }: ModuleProps) {
   )
 }
 
-function BillView({ business, navigate, id }: ModuleProps & { id: string }) {
+function BillView({ navigate, id }: ModuleProps & { id: string }) {
+  const { business } = useBusiness()
   const { data: bill, loading } = useFetch<Bill>(`/api/bills?id=${id}`, [id])
   if (loading || !bill) return <LoadingSpinner message="Loading bill..." />
   const currency = bill.currency || business?.baseCurrency || 'AED'

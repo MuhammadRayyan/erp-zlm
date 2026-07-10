@@ -6,11 +6,12 @@ import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { TrendingUp, TrendingDown, Wallet, Users, FileText, AlertTriangle, ArrowRight, Receipt } from 'lucide-react'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts'
-import { fmtMoney, fmtDate, StatusBadge, StatCard, LoadingSpinner, EmptyState } from '../shared/ui-helpers'
+import { fmtMoney, fmtDate, StatusBadge, StatCard, LoadingSpinner, EmptyState, useBusiness } from '../shared/ui-helpers'
 import type { ModuleProps } from '../app-shell'
 
-export function Dashboard({ business, navigate }: ModuleProps) {
+export function Dashboard({ navigate, auth }: ModuleProps) {
   const { data, loading } = useDashboardData()
+  const { business } = useBusiness()
 
   if (loading || !data) return <LoadingSpinner message="Loading dashboard..." />
 

@@ -1,29 +1,53 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getCurrentBusiness, getCurrentBusinessId } from '@/lib/business-context'
-import { cookies } from 'next/headers'
+import { getCurrentBusiness, getCurrentTenantId, ensureBusinessId, hasPermission } from '@/lib/auth'
 
 // GET /api/business — current business (auto-creates if none)
 export async function GET() {
   let business = await getCurrentBusiness()
   if (!business) {
-    const { seedDefaultData } = await import('@/lib/seed')
-    business = await seedDefaultData()
-    const cookieStore = await cookies()
-    cookieStore.set('businessId', business.id, { path: '/', maxAge: 60 * 60 * 24 * 365 })
-  } else {
-    const cookieStore = await cookies()
-    if (!cookieStore.get('businessId')?.value) {
-      cookieStore.set('businessId', business.id, { path: '/', maxAge: 60 * 60 * 24 * 365 })
-    }
+    const id = await ensureBusinessId()
+    business = await db.business.findUnique({ where: { id } })
   }
-  return NextResponse.json(business)
+  if (!business) return NextResponse.json({ error: 'No business' }, { status: 400 })
+
+  return NextResponse.json({
+    id: business.id,
+    name: business.name,
+    legalName: business.legalName,
+    trn: business.trn,
+    email: business.email,
+    phone: business.phone,
+    website: business.website,
+    addressLine1: business.addressLine1,
+    addressLine2: business.addressLine2,
+    city: business.city,
+    state: business.state,
+    postalCode: business.postalCode,
+    country: business.country,
+    baseCurrency: business.baseCurrency,
+    vatRegistered: business.vatRegistered,
+    vatRate: Number(business.vatRate),
+    invoicePrefix: business.invoicePrefix,
+    billPrefix: business.billPrefix,
+    quotationPrefix: business.quotationPrefix,
+    creditNotePrefix: business.creditNotePrefix,
+    receiptPrefix: business.receiptPrefix,
+    paymentPrefix: business.paymentPrefix,
+    deliveryNotePrefix: business.deliveryNotePrefix,
+    logoUrl: business.logoUrl,
+    tenantId: business.tenantId,
+  })
 }
 
 // PUT /api/business — update business settings
 export async function PUT(req: NextRequest) {
-  const businessId = await ensureDefaultBusiness()
-  
+  if (!(await hasPermission('tenant.settings'))) {
+    return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
+  }
+
+  const business = await getCurrentBusiness()
+  if (!business) return NextResponse.json({ error: 'No business' }, { status: 400 })
 
   const body = await req.json()
   const allowed = [
@@ -40,6 +64,6 @@ export async function PUT(req: NextRequest) {
     if (k in body) data[k] = body[k]
   }
 
-  const updated = await db.business.update({ where: { id: businessId }, data })
+  const updated = await db.business.update({ where: { id: business.id }, data })
   return NextResponse.json(updated)
 }

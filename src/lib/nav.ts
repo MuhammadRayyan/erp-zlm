@@ -60,6 +60,17 @@ export const NAV_GROUPS: { group: string; items: NavItem[] }[] = [
   },
 ]
 
-export const MODULE_LABELS: Record<string, string> = Object.fromEntries(
-  NAV_GROUPS.flatMap(g => g.items).map(i => [i.id, i.label])
-)
+export const ADMIN_NAV_GROUPS: { group: string; items: NavItem[] }[] = [
+  {
+    group: 'Administration',
+    items: [
+      { id: 'admin-portal', label: 'Platform Admin', icon: 'Shield', group: 'Administration' },
+      { id: 'tenant-portal', label: 'Organization Settings', icon: 'UserCog', group: 'Administration' },
+    ],
+  },
+]
+
+export const MODULE_LABELS: Record<string, string> = {
+  ...Object.fromEntries(NAV_GROUPS.flatMap(g => g.items).map(i => [i.id, i.label])),
+  ...Object.fromEntries(ADMIN_NAV_GROUPS.flatMap(g => g.items).map(i => [i.id, i.label])),
+}

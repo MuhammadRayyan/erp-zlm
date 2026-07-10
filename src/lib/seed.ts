@@ -1,5 +1,6 @@
 import { db } from './db'
 import { UAE_CHART_OF_ACCOUNTS } from './constants'
+import * as Tpl from './default-templates'
 
 // Seed a default business with UAE chart of accounts, tax rates, and currencies
 export async function seedDefaultData() {
@@ -95,28 +96,110 @@ export async function seedCurrencies(businessId: string) {
 }
 
 export async function seedDefaultTemplates(businessId: string) {
-  const existing = await db.pdfTemplate.count({ where: { businessId } })
-  if (existing > 0) return
-
-  const { DEFAULT_INVOICE_TEMPLATE, DEFAULT_TEMPLATE_CSS } = await import('./default-templates')
-
+  // Professional template catalog. The first template of each doctype is
+  // flagged as the default. All are flagged as system (non-deletable).
   const templates = [
-    { doctype: 'SALES_INVOICE', name: 'Default Invoice' },
-    { doctype: 'PURCHASE_BILL', name: 'Default Bill' },
-    { doctype: 'QUOTATION', name: 'Default Quotation' },
-    { doctype: 'CREDIT_NOTE', name: 'Default Credit Note' },
-    { doctype: 'DELIVERY_NOTE', name: 'Default Delivery Note' },
+    // === SALES_INVOICE — five distinct designs; "Modern Invoice" is default ===
+    {
+      name: 'Modern Invoice',
+      doctype: 'SALES_INVOICE',
+      htmlContent: Tpl.DEFAULT_INVOICE_TEMPLATE,
+      cssContent: Tpl.DEFAULT_TEMPLATE_CSS,
+      isDefault: true,
+    },
+    {
+      name: 'Classic Invoice',
+      doctype: 'SALES_INVOICE',
+      htmlContent: Tpl.CLASSIC_INVOICE_TEMPLATE,
+      cssContent: Tpl.CLASSIC_INVOICE_CSS,
+      isDefault: false,
+    },
+    {
+      name: 'UAE Compliant Invoice',
+      doctype: 'SALES_INVOICE',
+      htmlContent: Tpl.UAE_COMPLIANT_INVOICE_TEMPLATE,
+      cssContent: Tpl.UAE_COMPLIANT_INVOICE_CSS,
+      isDefault: false,
+    },
+    {
+      name: 'Minimal Invoice',
+      doctype: 'SALES_INVOICE',
+      htmlContent: Tpl.MINIMAL_INVOICE_TEMPLATE,
+      cssContent: Tpl.MINIMAL_INVOICE_CSS,
+      isDefault: false,
+    },
+    {
+      name: 'Bold Invoice',
+      doctype: 'SALES_INVOICE',
+      htmlContent: Tpl.BOLD_INVOICE_TEMPLATE,
+      cssContent: Tpl.BOLD_INVOICE_CSS,
+      isDefault: false,
+    },
+    // === PURCHASE_BILL ===
+    {
+      name: 'Modern Bill',
+      doctype: 'PURCHASE_BILL',
+      htmlContent: Tpl.DEFAULT_INVOICE_TEMPLATE,
+      cssContent: Tpl.DEFAULT_TEMPLATE_CSS,
+      isDefault: true,
+    },
+    // === QUOTATION ===
+    {
+      name: 'Professional Quotation',
+      doctype: 'QUOTATION',
+      htmlContent: Tpl.PRO_QUOTATION_TEMPLATE,
+      cssContent: Tpl.PRO_QUOTATION_CSS,
+      isDefault: true,
+    },
+    // === CREDIT_NOTE ===
+    {
+      name: 'Professional Credit Note',
+      doctype: 'CREDIT_NOTE',
+      htmlContent: Tpl.PRO_CREDIT_NOTE_TEMPLATE,
+      cssContent: Tpl.PRO_CREDIT_NOTE_CSS,
+      isDefault: true,
+    },
+    // === DELIVERY_NOTE ===
+    {
+      name: 'Professional Delivery Note',
+      doctype: 'DELIVERY_NOTE',
+      htmlContent: Tpl.PRO_DELIVERY_NOTE_TEMPLATE,
+      cssContent: Tpl.PRO_DELIVERY_NOTE_CSS,
+      isDefault: true,
+    },
   ]
 
+  // Use upsert with an empty `update` so seeding is idempotent:
+  //   - New businesses get all templates created
+  //   - Existing businesses keep their (possibly customized) templates untouched
+  //   - New templates added in upgrades get created alongside existing ones
   for (const t of templates) {
-    await db.pdfTemplate.create({
-      data: {
+    // If another template for this doctype is already marked default, don't
+    // introduce a second default (the API enforces single-default-per-doctype
+    // on user edits; we mirror that here).
+    let isDefault = t.isDefault
+    if (isDefault) {
+      const existingDefault = await db.pdfTemplate.findFirst({
+        where: {
+          businessId,
+          doctype: t.doctype,
+          isDefault: true,
+          name: { not: t.name },
+        },
+      })
+      if (existingDefault) isDefault = false
+    }
+
+    await db.pdfTemplate.upsert({
+      where: { businessId_name: { businessId, name: t.name } },
+      update: {}, // No-op if exists — preserves any user edits
+      create: {
         businessId,
         name: t.name,
         doctype: t.doctype,
-        htmlContent: DEFAULT_INVOICE_TEMPLATE,
-        cssContent: DEFAULT_TEMPLATE_CSS,
-        isDefault: true,
+        htmlContent: t.htmlContent,
+        cssContent: t.cssContent,
+        isDefault,
         isSystem: true,
       },
     })

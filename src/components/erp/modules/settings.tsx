@@ -12,14 +12,15 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import { Save, Building2, Percent, Coins, Hash } from 'lucide-react'
 import { UAE_EMIRATES } from '@/lib/constants'
-import { useFetch, LoadingSpinner } from '../shared/ui-helpers'
+import { useFetch, LoadingSpinner, useBusiness } from '../shared/ui-helpers'
 import type { ModuleProps } from '../app-shell'
 import { toast } from 'sonner'
 
 interface TaxRate { id: string; name: string; nameAr: string | null; rate: number; category: string; isDefault: boolean; isActive: boolean }
 interface Currency { id: string; code: string; name: string; symbol: string; isBase: boolean; exchangeRate: number }
 
-export function SettingsModule({ business }: ModuleProps) {
+export function SettingsModule(_props: ModuleProps) {
+  const { business } = useBusiness()
   const { data: taxRates, refetch: refetchTax } = useFetch<TaxRate[]>('/api/tax-rates')
   const { data: currencies } = useFetch<Currency[]>('/api/currencies')
   const [bizForm, setBizForm] = React.useState<Record<string, unknown> | null>(null)

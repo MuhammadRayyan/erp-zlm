@@ -20,6 +20,9 @@ import { ReportsModule } from './modules/reports'
 import { TemplatesModule } from './modules/templates'
 import { CustomFieldsModule } from './modules/custom-fields'
 import { SettingsModule } from './modules/settings'
+import { AdminPortal } from './modules/admin-portal'
+import { TenantPortal } from './modules/tenant-portal'
+import { AuthScreen } from './auth-screen'
 
 export interface Business {
   id: string
@@ -37,54 +40,72 @@ export interface Business {
   vatRate: string | number
   invoicePrefix: string
   billPrefix: string
+  tenantId: string
   [key: string]: unknown
+}
+
+export interface AuthState {
+  authenticated: boolean
+  user: { id: string; email: string; name: string; role: string }
+  tenants: { id: string; name: string; slug: string; role: string; status: string; plan: string }[]
+  currentTenantId: string | null
+  currentTenantRole: string | null
+  currentBusinessId: string | null
+  currentBusinessName: string | null
 }
 
 export function AppShell() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const activeModule = searchParams.get('m') || 'dashboard'
-  const [business, setBusiness] = React.useState<Business | null>(null)
+  const [auth, setAuth] = React.useState<AuthState | null>(null)
   const [loading, setLoading] = React.useState(true)
 
-  React.useEffect(() => {
-    initApp()
-  }, [])
-
-  async function initApp() {
+  const checkAuth = React.useCallback(async () => {
     try {
-      // Ensure data is seeded
-      await fetch('/api/init', { method: 'POST' })
-      // Get current business
-      const res = await fetch('/api/business')
-      if (res.ok) {
-        const b = await res.json()
-        setBusiness(b)
-      }
+      // Ensure seeded
+      const initRes = await fetch('/api/init', { method: 'POST' })
+      // Ignore init result — may already be seeded
+
+      const res = await fetch('/api/auth/me')
+      const data = await res.json()
+      setAuth(data)
     } catch (e) {
-      console.error('Init error:', e)
+      console.error('Auth check error:', e)
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  React.useEffect(() => {
+    checkAuth()
+  }, [checkAuth])
 
   const navigate = (m: string, params?: Record<string, string>) => {
     const sp = new URLSearchParams({ m, ...params })
     router.push(`/?${sp.toString()}`)
   }
 
+  const refreshAuth = () => checkAuth()
+
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-          <p className="text-sm text-muted-foreground">Initializing AccountERP...</p>
+          <p className="text-sm text-muted-foreground">Loading AccountERP...</p>
         </div>
       </div>
     )
   }
 
-  const moduleProps = { business, navigate, searchParams }
+  if (!auth?.authenticated) {
+    return <AuthScreen onAuthed={refreshAuth} />
+  }
+
+  const isPlatformAdmin = auth.user.role === 'PLATFORM_ADMIN'
+
+  const moduleProps = { business: null, navigate, searchParams, auth, refreshAuth }
 
   const renderModule = () => {
     switch (activeModule) {
@@ -105,15 +126,17 @@ export function AppShell() {
       case 'templates': return <TemplatesModule {...moduleProps} />
       case 'custom-fields': return <CustomFieldsModule {...moduleProps} />
       case 'settings': return <SettingsModule {...moduleProps} />
+      case 'admin-portal': return <AdminPortal {...moduleProps} />
+      case 'tenant-portal': return <TenantPortal {...moduleProps} />
       default: return <Dashboard {...moduleProps} />
     }
   }
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      <Sidebar activeModule={activeModule} onNavigate={navigate} />
+      <Sidebar activeModule={activeModule} onNavigate={navigate} auth={auth} onLogout={refreshAuth} />
       <div className="flex flex-1 flex-col overflow-hidden">
-        <Topbar business={business} module={activeModule} />
+        <Topbar auth={auth} module={activeModule} onRefresh={refreshAuth} />
         <main className="flex-1 overflow-y-auto">
           <div className="mx-auto max-w-[1400px] p-4 md:p-6">
             {renderModule()}
@@ -128,4 +151,6 @@ export type ModuleProps = {
   business: Business | null
   navigate: (m: string, params?: Record<string, string>) => void
   searchParams: URLSearchParams
+  auth: AuthState
+  refreshAuth: () => void
 }

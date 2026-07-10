@@ -188,3 +188,22 @@ export function useToastHelper() {
   }, [])
   return { toasts, toast }
 }
+
+// Hook to fetch current business context
+export function useBusiness() {
+  const [business, setBusiness] = React.useState<{
+    id: string; name: string; baseCurrency: string; vatRegistered: boolean; vatRate: number;
+    trn: string | null; invoicePrefix: string; billPrefix: string; [key: string]: unknown
+  } | null>(null)
+  const [loading, setLoading] = React.useState(true)
+
+  React.useEffect(() => {
+    fetch('/api/business')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d && !d.error) setBusiness(d) })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
+
+  return { business, loading }
+}

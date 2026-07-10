@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { ensureDefaultBusiness } from '@/lib/business-context'
+import { ensureBusinessId, getCurrentTenantId, getSession } from '@/lib/auth'
 import { postJournalEntry, reverseJournalEntry } from '@/lib/journal-service'
 import { money, toNumber } from '@/lib/decimal'
 
 // POST /api/bills/actions — { action: 'post' | 'void', id }
 export async function POST(req: NextRequest) {
-  const businessId = await ensureDefaultBusiness()
+  const businessId = await ensureBusinessId()
   
 
   const body = await req.json()
@@ -15,7 +15,9 @@ export async function POST(req: NextRequest) {
   const bill = await db.purchaseBill.findUnique({ where: { id }, include: { party: true } })
   if (!bill) return NextResponse.json({ error: 'Bill not found' }, { status: 404 })
 
-  let user = await db.user.findFirst()
+  const session = await getSession()
+  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+  const user = { id: session.userId, name: session.name, email: session.email }
   if (!user) user = await db.user.create({ data: { email: 'admin@local', name: 'Admin', role: 'ADMIN' } })
 
   if (action === 'post') {

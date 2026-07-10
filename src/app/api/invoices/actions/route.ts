@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { ensureDefaultBusiness } from '@/lib/business-context'
+import { ensureBusinessId, getCurrentTenantId, getSession } from '@/lib/auth'
 import { postJournalEntry, reverseJournalEntry } from '@/lib/journal-service'
 import { money, toNumber } from '@/lib/decimal'
 import { generateEInvoiceUuid } from '@/lib/vat-service'
 
 // POST /api/invoices/actions — { action: 'post' | 'void', id }
 export async function POST(req: NextRequest) {
-  const businessId = await ensureDefaultBusiness()
+  const businessId = await ensureBusinessId()
   
 
   const body = await req.json()
@@ -19,10 +19,9 @@ export async function POST(req: NextRequest) {
   })
   if (!invoice) return NextResponse.json({ error: 'Invoice not found' }, { status: 404 })
 
-  let user = await db.user.findFirst()
-  if (!user) {
-    user = await db.user.create({ data: { email: 'admin@local', name: 'Admin', role: 'ADMIN' } })
-  }
+  const session = await getSession()
+  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+  const user = { id: session.userId, name: session.name, email: session.email }
 
   if (action === 'post') {
     if (invoice.status !== 'DRAFT') {

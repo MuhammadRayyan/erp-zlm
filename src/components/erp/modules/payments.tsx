@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Plus, ArrowDownCircle, ArrowUpCircle } from 'lucide-react'
-import { fmtMoney, fmtDate, LoadingSpinner, EmptyState, useFetch, PageHeader } from '../shared/ui-helpers'
+import { fmtMoney, fmtDate, LoadingSpinner, EmptyState, useFetch, PageHeader, useBusiness } from '../shared/ui-helpers'
 import type { ModuleProps } from '../app-shell'
 import { toast } from 'sonner'
 
@@ -19,7 +19,8 @@ interface Party { id: string; name: string; type: string }
 interface BankAccount { id: string; name: string }
 interface Invoice { id: string; number: string; total: number; amountPaid: number; balanceDue: number }
 
-export function PaymentsModule({ business, navigate, searchParams }: ModuleProps) {
+export function PaymentsModule({ navigate, searchParams }: ModuleProps) {
+  const { business } = useBusiness()
   const action = searchParams.get('action')
   if (action === 'new') return <PaymentForm business={business} navigate={navigate} preselectInvoiceId={searchParams.get('invoiceId')} />
   return <PaymentList business={business} navigate={navigate} />
@@ -63,7 +64,8 @@ function PaymentList({ navigate }: ModuleProps) {
   )
 }
 
-function PaymentForm({ business, navigate, preselectInvoiceId }: ModuleProps & { preselectInvoiceId?: string | null }) {
+function PaymentForm({ navigate, preselectInvoiceId }: ModuleProps & { preselectInvoiceId?: string | null }) {
+  const { business } = useBusiness()
   const { data: parties } = useFetch<Party[]>('/api/parties')
   const { data: bankAccounts } = useFetch<BankAccount[]>('/api/banking')
   const [type, setType] = React.useState<'RECEIPT' | 'PAYMENT'>(preselectInvoiceId ? 'RECEIPT' : 'RECEIPT')

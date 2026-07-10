@@ -9,14 +9,15 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Plus, Trash2, Save } from 'lucide-react'
-import { fmtMoney, fmtDate, StatusBadge, LoadingSpinner, EmptyState, useFetch, PageHeader } from '../shared/ui-helpers'
+import { fmtMoney, fmtDate, StatusBadge, LoadingSpinner, EmptyState, useFetch, PageHeader, useBusiness } from '../shared/ui-helpers'
 import type { ModuleProps } from '../app-shell'
 import { toast } from 'sonner'
 
 interface Quotation { id: string; number: string; date: string; validUntil: string | null; partyName: string; total: number; status: string; currency: string; lines: { description: string; quantity: number; unitPrice: number; discount: number; lineTotal: number; lineTax: number }[]; notes: string | null; terms: string | null; partyId: string }
 interface Party { id: string; name: string }
 
-export function QuotationsModule({ business, navigate, searchParams }: ModuleProps) {
+export function QuotationsModule({ navigate, searchParams }: ModuleProps) {
+  const { business } = useBusiness()
   const action = searchParams.get('action')
   if (action === 'new') return <QuotationForm business={business} navigate={navigate} />
   if (action === 'view' && searchParams.get('id')) return <QuotationView business={business} navigate={navigate} id={searchParams.get('id')!} />
@@ -49,7 +50,8 @@ function QuotationList({ navigate }: ModuleProps) {
   )
 }
 
-function QuotationForm({ business, navigate }: ModuleProps) {
+function QuotationForm({ navigate }: ModuleProps) {
+  const { business } = useBusiness()
   const { data: parties } = useFetch<Party[]>('/api/parties?type=CUSTOMER')
   const [form, setForm] = React.useState({
     partyId: '', date: new Date().toISOString().split('T')[0], validUntil: '',
@@ -113,7 +115,8 @@ function QuotationForm({ business, navigate }: ModuleProps) {
   )
 }
 
-function QuotationView({ business, navigate, id }: ModuleProps & { id: string }) {
+function QuotationView({ navigate, id }: ModuleProps & { id: string }) {
+  const { business } = useBusiness()
   const { data: q, loading } = useFetch<Quotation>(`/api/quotations?id=${id}`, [id])
   if (loading || !q) return <LoadingSpinner message="Loading quotation..." />
   const currency = q.currency || business?.baseCurrency || 'AED'

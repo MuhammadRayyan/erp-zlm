@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { ensureDefaultBusiness } from '@/lib/business-context'
+import { ensureBusinessId, getCurrentTenantId } from '@/lib/auth'
 import { toNumber } from '@/lib/decimal'
 
 // GET /api/accounts — list all accounts (hierarchical)
 export async function GET(req: NextRequest) {
-  const businessId = await ensureDefaultBusiness()
+  const businessId = await ensureBusinessId()
   
 
   const { searchParams } = new URL(req.url)
@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
 
 // POST /api/accounts — create account
 export async function POST(req: NextRequest) {
-  const businessId = await ensureDefaultBusiness()
+  const businessId = await ensureBusinessId()
   
 
   const body = await req.json()
@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
 
 // PUT /api/accounts?id=xxx — update account
 export async function PUT(req: NextRequest) {
-  const businessId = await ensureDefaultBusiness()
+  const businessId = await ensureBusinessId()
   
 
   const { searchParams } = new URL(req.url)

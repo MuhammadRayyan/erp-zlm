@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { ensureDefaultBusiness } from '@/lib/business-context'
+import { ensureBusinessId, getCurrentTenantId, getSession } from '@/lib/auth'
 import { postJournalEntry } from '@/lib/journal-service'
 import { toNumber, money } from '@/lib/decimal'
 
 // GET /api/payments?type=RECEIPT|PAYMENT
 export async function GET(req: NextRequest) {
-  const businessId = await ensureDefaultBusiness()
+  const businessId = await ensureBusinessId()
   
 
   const { searchParams } = new URL(req.url)
@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
 
 // POST /api/payments — create payment + allocate to invoices/bills + post journal
 export async function POST(req: NextRequest) {
-  const businessId = await ensureDefaultBusiness()
+  const businessId = await ensureBusinessId()
   
 
   const body = await req.json()
@@ -49,7 +49,9 @@ export async function POST(req: NextRequest) {
   const nextNum = isReceipt ? business.nextReceiptNumber : business.nextPaymentNumber
   const number = `${prefix}${String(nextNum).padStart(6, '0')}`
 
-  let user = await db.user.findFirst()
+  const session = await getSession()
+  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+  const user = { id: session.userId, name: session.name, email: session.email }
   if (!user) user = await db.user.create({ data: { email: 'admin@local', name: 'Admin', role: 'ADMIN' } })
 
   const amount = toNumber(money(body.amount))
