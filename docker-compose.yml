@@ -1,0 +1,42 @@
+# AccountERP — Docker Compose
+# Run locally: docker-compose up
+# Production: same file, add environment variables
+
+services:
+  app:
+    build: .
+    container_name: accounterp
+    ports:
+      - "3000:3000"
+    volumes:
+      - accounterp_data:/app/data
+      - ./db:/app/db
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=file:/app/data/accounterp.db
+      - NEXT_TELEMETRY_DISABLED=1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  # Optional: PostgreSQL for production (uncomment to use instead of SQLite)
+  # db:
+  #   image: postgres:16-alpine
+  #   container_name: accounterp_db
+  #   environment:
+  #     POSTGRES_DB: accounterp
+  #     POSTGRES_USER: accounterp
+  #     POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+  #   volumes:
+  #     - pg_data:/var/lib/postgresql/data
+  #   ports:
+  #     - "5432:5432"
+  #   restart: unless-stopped
+
+volumes:
+  accounterp_data:
+  # pg_data:

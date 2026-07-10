@@ -1,0 +1,61 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { db } from '@/lib/db'
+import { getCurrentBusinessId } from '@/lib/business-context'
+import { postJournalEntry, reverseJournalEntry } from '@/lib/journal-service'
+import { money, toNumber } from '@/lib/decimal'
+
+// POST /api/bills/actions — { action: 'post' | 'void', id }
+export async function POST(req: NextRequest) {
+  const businessId = await getCurrentBusinessId()
+  if (!businessId) return NextResponse.json({ error: 'No business' }, { status: 400 })
+
+  const body = await req.json()
+  const { action, id } = body
+
+  const bill = await db.purchaseBill.findUnique({ where: { id }, include: { party: true } })
+  if (!bill) return NextResponse.json({ error: 'Bill not found' }, { status: 404 })
+
+  let user = await db.user.findFirst()
+  if (!user) user = await db.user.create({ data: { email: 'admin@local', name: 'Admin', role: 'ADMIN' } })
+
+  if (action === 'post') {
+    if (bill.status !== 'DRAFT') return NextResponse.json({ error: 'Only draft bills can be posted' }, { status: 400 })
+
+    const apAccount = await db.account.findFirst({ where: { businessId, subtype: 'ACCOUNTS_PAYABLE' } })
+    const purchasesAccount = await db.account.findFirst({ where: { businessId, subtype: 'COST_OF_GOODS_SOLD' } })
+    const vatInputAccount = await db.account.findFirst({ where: { businessId, code: '2210' } })
+
+    if (apAccount && purchasesAccount) {
+      const subtotal = toNumber(money(bill.subtotal))
+      const tax = toNumber(money(bill.totalTax))
+      const total = toNumber(money(bill.total))
+
+      await postJournalEntry({
+        businessId, userId: user.id, date: bill.date,
+        reference: `Bill ${bill.number}`, description: `Purchase Bill ${bill.number} - ${bill.party.name}`,
+        sourceType: 'PURCHASE_BILL', sourceId: bill.id,
+        lines: [
+          { accountId: purchasesAccount.id, debit: subtotal, credit: 0, description: `Purchase - ${bill.number}` },
+          ...(vatInputAccount && tax > 0 ? [{ accountId: vatInputAccount.id, debit: tax, credit: 0, description: `Input VAT - ${bill.number}` }] : []),
+          { accountId: apAccount.id, debit: 0, credit: total, partyId: bill.partyId, description: `Bill ${bill.number}` },
+        ],
+      })
+    }
+
+    const updated = await db.purchaseBill.update({ where: { id }, data: { status: 'POSTED', postedAt: new Date() } })
+    return NextResponse.json(updated)
+  }
+
+  if (action === 'void') {
+    if (bill.status === 'DRAFT') {
+      const updated = await db.purchaseBill.update({ where: { id }, data: { status: 'VOID' } })
+      return NextResponse.json(updated)
+    }
+    const je = await db.journalEntry.findFirst({ where: { sourceType: 'PURCHASE_BILL', sourceId: id } })
+    if (je) await reverseJournalEntry(je.id, user.id, `Void of bill ${bill.number}`)
+    const updated = await db.purchaseBill.update({ where: { id }, data: { status: 'VOID' } })
+    return NextResponse.json(updated)
+  }
+
+  return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
+}
