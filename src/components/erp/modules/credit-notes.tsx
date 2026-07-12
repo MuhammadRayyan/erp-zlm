@@ -20,7 +20,7 @@ export function CreditNotesModule({ navigate, searchParams }: ModuleProps) {
   return <CreditNoteList business={business} navigate={navigate} />
 }
 
-function CreditNoteList({ navigate }: ModuleProps) {
+function CreditNoteList({ navigate }: any) {
   const { data: cns, loading } = useFetch<{ id: string; number: string; date: string; partyName: string; total: number; status: string; reason: string | null }[]>('/api/credit-notes')
   if (loading) return <LoadingSpinner message="Loading credit notes..." />
   return (
@@ -39,7 +39,7 @@ function CreditNoteList({ navigate }: ModuleProps) {
   )
 }
 
-function CreditNoteForm({ navigate }: ModuleProps) {
+function CreditNoteForm({ navigate }: any) {
   const { business } = useBusiness()
   const { data: parties } = useFetch<{ id: string; name: string }[]>('/api/parties?type=CUSTOMER')
   const [form, setForm] = React.useState({

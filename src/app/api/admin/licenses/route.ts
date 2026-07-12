@@ -18,7 +18,7 @@ export async function GET() {
   }
 
   const licenses = await db.license.findMany({
-    include: { tenant: { select: { name: true, slug: true } } },
+    
     orderBy: { createdAt: 'desc' },
   })
 

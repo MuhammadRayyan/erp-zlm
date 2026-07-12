@@ -26,6 +26,7 @@ interface Party {
   trn: string | null
   email: string | null
   phone: string | null
+  website: string | null
   contactPerson: string | null
   city: string | null
   state: string | null
@@ -37,11 +38,17 @@ interface Party {
   notes: string | null
   isActive: boolean
   billingAddress1: string | null
+  billingAddress2: string | null
   billingCity: string | null
   billingState: string | null
+  billingPostalCode: string | null
   billingCountry: string
   shippingAddress1: string | null
+  shippingAddress2: string | null
   shippingCity: string | null
+  shippingState: string | null
+  shippingPostalCode: string | null
+  shippingCountry: string
 }
 
 export function PartiesModule({ partyType, navigate }: ModuleProps & { partyType: 'CUSTOMER' | 'SUPPLIER' }) {

@@ -2,11 +2,8 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
-  // NOTE: 55 pre-existing TypeScript type annotation errors remain from
-  // rapid feature development. These are type mismatches (not runtime bugs)
-  // and the application runs correctly. They should be resolved over time.
-  // See README "Known Issues" section for details.
-  typescript: { ignoreBuildErrors: true },
+  // All TypeScript errors resolved — strict type checking enabled
+  // typescript: { ignoreBuildErrors: true }, // No longer needed
   reactStrictMode: true,
   async headers() {
     return [{

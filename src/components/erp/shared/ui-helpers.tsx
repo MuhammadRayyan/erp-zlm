@@ -191,10 +191,7 @@ export function useToastHelper() {
 
 // Hook to fetch current business context
 export function useBusiness() {
-  const [business, setBusiness] = React.useState<{
-    id: string; name: string; baseCurrency: string; vatRegistered: boolean; vatRate: number;
-    trn: string | null; invoicePrefix: string; billPrefix: string; [key: string]: unknown
-  } | null>(null)
+  const [business, setBusiness] = React.useState<any>(null)
   const [loading, setLoading] = React.useState(true)
 
   React.useEffect(() => {

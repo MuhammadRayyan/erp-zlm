@@ -420,8 +420,6 @@ See **TEST_CREDENTIALS.md** for the complete permission matrix and UAT testing g
 
 ## Known Issues
 
-1. **TypeScript type annotations:** 55 pre-existing type annotation errors remain from rapid feature development. These are type mismatches (not runtime bugs) — the application runs correctly. `ignoreBuildErrors: true` is enabled in `next.config.ts` as a temporary measure. These should be resolved over time.
-
 2. **No automated test suite:** Financial calculation logic should have unit tests. Recommended: Vitest for unit tests, Playwright for E2E tests.
 
 3. **No email verification:** Registration doesn't require email verification. Should be added before public launch.
@@ -452,6 +450,7 @@ The following issues were identified in security audits and have been **fully re
 - ✅ Rate limiting on login and register routes
 - ✅ Security HTTP headers (HSTS, X-Frame-Options, etc.)
 - ✅ `reactStrictMode: true`
+- ✅ `ignoreBuildErrors: true` removed — all 45 TypeScript errors resolved
 - ✅ Password minimum 8 characters
 - ✅ Invoice voiding reverses ALL related journal entries
 

@@ -47,7 +47,7 @@ interface InvoiceLine {
 }
 
 interface Party { id: string; name: string }
-interface TaxRate { id: string; name: string; rate: number; category: string }
+interface TaxRate { id: string; name: string; rate: number; category: string; isDefault?: boolean }
 
 export function InvoicesModule({ navigate, searchParams }: ModuleProps) {
   const { business } = useBusiness()
@@ -55,7 +55,7 @@ export function InvoicesModule({ navigate, searchParams }: ModuleProps) {
   const editId = searchParams.get('id')
 
   if (action === 'new' || action === 'edit') {
-    return <InvoiceForm business={business} navigate={navigate} editId={action === 'edit' ? editId : undefined} />
+    return <InvoiceForm business={business} navigate={navigate} editId={action === 'edit' ? editId || undefined : undefined} />
   }
   if (action === 'view' && editId) {
     return <InvoiceView business={business} navigate={navigate} id={editId} />
@@ -64,7 +64,7 @@ export function InvoicesModule({ navigate, searchParams }: ModuleProps) {
   return <InvoiceList business={business} navigate={navigate} />
 }
 
-function InvoiceList({ navigate }: ModuleProps) {
+function InvoiceList({ navigate }: any) {
   const { data: invoices, loading, refetch } = useFetch<Invoice[]>('/api/invoices')
   const [search, setSearch] = React.useState('')
   const [statusFilter, setStatusFilter] = React.useState('ALL')
@@ -144,7 +144,7 @@ function InvoiceList({ navigate }: ModuleProps) {
   )
 }
 
-function InvoiceForm({ navigate, editId }: ModuleProps & { editId?: string }) {
+function InvoiceForm({ navigate, editId }: any & { editId?: string }) {
   const { business } = useBusiness()
   const { data: parties } = useFetch<Party[]>('/api/parties?type=CUSTOMER')
   const { data: taxRates } = useFetch<TaxRate[]>('/api/tax-rates')
@@ -173,7 +173,7 @@ function InvoiceForm({ navigate, editId }: ModuleProps & { editId?: string }) {
         lines: editInvoice.lines.map(l => ({
           id: l.id, description: l.description, quantity: l.quantity,
           unitPrice: l.unitPrice, discount: l.discount,
-          taxRateId: l.taxRateId, taxRate: l.taxRate?.rate || (business?.vatRegistered ? Number(business.vatRate) : 0),
+          taxRateId: l.taxRateId, taxRate: (l as any).taxRate?.rate || (business?.vatRegistered ? Number(business.vatRate) : 0),
           lineTotal: l.lineTotal, lineTax: l.lineTax, total: l.lineTotal + l.lineTax,
         })),
       })
@@ -424,7 +424,7 @@ function InvoiceForm({ navigate, editId }: ModuleProps & { editId?: string }) {
   )
 }
 
-function InvoiceView({ navigate, id }: ModuleProps & { id: string }) {
+function InvoiceView({ navigate, id }: any & { id: string }) {
   const { business } = useBusiness()
   const { data: invoice, loading } = useFetch<Invoice>(`/api/invoices?id=${id}`, [id])
   const [showPdf, setShowPdf] = React.useState(false)
@@ -521,7 +521,7 @@ function InvoiceView({ navigate, id }: ModuleProps & { id: string }) {
                         <TableCell className="text-right">{fmtNumber(l.quantity)}</TableCell>
                         <TableCell className="text-right">{fmtMoney(l.unitPrice, currency)}</TableCell>
                         <TableCell className="text-right">{l.discount}%</TableCell>
-                        <TableCell className="text-right">{l.taxRate?.rate ?? 0}%</TableCell>
+                        <TableCell className="text-right">{(l as any).taxRate?.rate ?? 0}%</TableCell>
                         <TableCell className="text-right font-medium">{fmtMoney(l.lineTotal + l.lineTax, currency)}</TableCell>
                       </TableRow>
                     ))}
@@ -600,7 +600,7 @@ export function PdfPreview({ doctype, documentId }: { doctype: string; documentI
         <div className="mb-3 flex justify-end">
           <Button onClick={printPdf}><Printer className="mr-2 h-4 w-4" /> Print / Save as PDF</Button>
         </div>
-        <iframe srcDoc={html} className="h-[600px] w-full rounded border" title="PDF Preview" />
+        <iframe srcDoc={html || undefined} className="h-[600px] w-full rounded border" title="PDF Preview" />
       </CardContent>
     </Card>
   )

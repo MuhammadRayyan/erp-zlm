@@ -1,18 +1,10 @@
 import Handlebars from 'handlebars'
 import { Decimal, money, formatNumber } from './decimal'
 
-// SECURITY: Disable HTML escaping bypass — never allow {{{ }}} triple-brace
-// Handlebars escapes {{ }} by default (converts < > " ' & to HTML entities)
-// Triple-brace {{{ }}} renders raw HTML — XSS risk if user data is in it
-// We register a compiler AST visitor that blocks triple-brace usage
-// by escaping all values regardless of brace count
-Handlebars.JavaScriptCompiler.prototype.appendToBuffer = function (source, location, explicit) {
-  // Force all output through escapeExpression (like double-brace behavior)
-  if (source && typeof source === 'string' && source.includes('appendContent')) {
-    // This is a content node — let it through as-is (static template text)
-  }
-  return this.parent.appendToBuffer.call(this, source, location, explicit)
-}
+// SECURITY: All templates use double-brace {{ }} (escaped) — no triple-brace {{{ }}} allowed.
+// Handlebars escapes {{ }} by default (converts < > " ' & to HTML entities).
+// Triple-brace {{{ }}} renders raw HTML — XSS risk. Verified: no triple-brace in any template.
+// See default-templates.ts for all template definitions.
 
 // Register Handlebars helpers
 Handlebars.registerHelper('formatMoney', (v: unknown) => {

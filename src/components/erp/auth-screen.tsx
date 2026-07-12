@@ -69,10 +69,12 @@ export function AuthScreen({ onAuthed }: { onAuthed: () => void }) {
   }
 
   const fillTestCreds = (email: string, password: string) => {
-    const loginForm = document.getElementById('login-form') as HTMLFormElement
+    const loginForm = document.getElementById('login-form')
     if (loginForm) {
-      (loginForm.querySelector('[name="email"]') as HTMLInputElement).value = email
-      (loginForm.querySelector('[name="password"]') as HTMLInputElement).value = password
+      const emailInput = loginForm.querySelector('[name="email"]') as HTMLInputElement | null
+      const passwordInput = loginForm.querySelector('[name="password"]') as HTMLInputElement | null
+      if (emailInput) emailInput.value = email
+      if (passwordInput) passwordInput.value = password
     }
   }
 

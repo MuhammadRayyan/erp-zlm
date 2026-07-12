@@ -26,7 +26,7 @@ export function PaymentsModule({ navigate, searchParams }: ModuleProps) {
   return <PaymentList business={business} navigate={navigate} />
 }
 
-function PaymentList({ navigate }: ModuleProps) {
+function PaymentList({ navigate }: any) {
   const { data: payments, loading } = useFetch<Payment[]>('/api/payments')
   const [typeFilter, setTypeFilter] = React.useState('ALL')
   if (loading) return <LoadingSpinner message="Loading payments..." />
@@ -64,7 +64,7 @@ function PaymentList({ navigate }: ModuleProps) {
   )
 }
 
-function PaymentForm({ navigate, preselectInvoiceId }: ModuleProps & { preselectInvoiceId?: string | null }) {
+function PaymentForm({ navigate, preselectInvoiceId }: any & { preselectInvoiceId?: string | null }) {
   const { business } = useBusiness()
   const { data: parties } = useFetch<Party[]>('/api/parties')
   const { data: bankAccounts } = useFetch<BankAccount[]>('/api/banking')

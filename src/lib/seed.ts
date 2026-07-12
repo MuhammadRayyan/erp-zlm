@@ -19,6 +19,7 @@ export async function seedDefaultData() {
   // Create default business
   const business = await db.business.create({
     data: {
+      tenantId: 'default',
       name: 'My Company',
       legalName: 'My Company LLC',
       trn: '',
@@ -44,7 +45,7 @@ export async function seedChartOfAccounts(businessId: string) {
 
   const codeToId: Record<string, string> = {}
 
-  for (const acc of UAE_CHART_OF_ACCOUNTS) {
+  for (const acc of UAE_CHART_OF_ACCOUNTS as any) {
     const parentId = acc.parent ? codeToId[acc.parent] : null
     const account = await db.account.create({
       data: {

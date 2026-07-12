@@ -24,7 +24,7 @@ export function QuotationsModule({ navigate, searchParams }: ModuleProps) {
   return <QuotationList business={business} navigate={navigate} />
 }
 
-function QuotationList({ navigate }: ModuleProps) {
+function QuotationList({ navigate }: any) {
   const { data: quotations, loading } = useFetch<Quotation[]>('/api/quotations')
   if (loading) return <LoadingSpinner message="Loading quotations..." />
   return (
@@ -50,7 +50,7 @@ function QuotationList({ navigate }: ModuleProps) {
   )
 }
 
-function QuotationForm({ navigate }: ModuleProps) {
+function QuotationForm({ navigate }: any) {
   const { business } = useBusiness()
   const { data: parties } = useFetch<Party[]>('/api/parties?type=CUSTOMER')
   const [form, setForm] = React.useState({
@@ -115,7 +115,7 @@ function QuotationForm({ navigate }: ModuleProps) {
   )
 }
 
-function QuotationView({ navigate, id }: ModuleProps & { id: string }) {
+function QuotationView({ navigate, id }: any) {
   const { business } = useBusiness()
   const { data: q, loading } = useFetch<Quotation>(`/api/quotations?id=${id}`, [id])
   if (loading || !q) return <LoadingSpinner message="Loading quotation..." />

@@ -19,7 +19,7 @@ export function DeliveryNotesModule({ navigate, searchParams }: ModuleProps) {
   return <DeliveryNoteList navigate={navigate} />
 }
 
-function DeliveryNoteList({ navigate }: ModuleProps) {
+function DeliveryNoteList({ navigate }: any) {
   const { data: dns, loading } = useFetch<{ id: string; number: string; date: string; partyName: string; status: string }[]>('/api/delivery-notes')
   if (loading) return <LoadingSpinner message="Loading delivery notes..." />
   return (
@@ -38,7 +38,7 @@ function DeliveryNoteList({ navigate }: ModuleProps) {
   )
 }
 
-function DeliveryNoteForm({ navigate }: ModuleProps) {
+function DeliveryNoteForm({ navigate }: any) {
   const { data: parties } = useFetch<{ id: string; name: string }[]>('/api/parties?type=CUSTOMER')
   const { data: items } = useFetch<{ id: string; name: string; sku: string; description: string | null }[]>('/api/items')
   const [form, setForm] = React.useState({

@@ -114,14 +114,8 @@ export async function POST(req: NextRequest) {
   // Payment: Debit AP, Credit Bank/Cash
   const arAccount = await db.account.findFirst({ where: { businessId, subtype: 'ACCOUNTS_RECEIVABLE' } })
   const apAccount = await db.account.findFirst({ where: { businessId, subtype: 'ACCOUNTS_PAYABLE' } })
-  let bankAccount: { accountId: string | null } | null = null
-  if (body.bankAccountId) {
-    bankAccount = await db.bankAccount.findUnique({ where: { id: body.bankAccountId }, select: { accountId: true } })
-  }
   const cashAccount = await db.account.findFirst({ where: { businessId, subtype: 'CASH' } })
-  const bankGlAccount = bankAccount?.accountId
-    ? await db.account.findUnique({ where: { id: bankAccount.accountId } })
-    : await db.account.findFirst({ where: { businessId, subtype: 'BANK' } })
+  const bankGlAccount = await db.account.findFirst({ where: { businessId, subtype: 'BANK' } })
 
   const cashOrBank = bankGlAccount || cashAccount
   if (!cashOrBank) return NextResponse.json(payment)

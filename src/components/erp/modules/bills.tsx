@@ -32,7 +32,7 @@ export function BillsModule({ navigate, searchParams }: ModuleProps) {
   return <BillList business={business} navigate={navigate} />
 }
 
-function BillList({ navigate }: ModuleProps) {
+function BillList({ navigate }: any) {
   const { data: bills, loading } = useFetch<Bill[]>('/api/bills')
   const [search, setSearch] = React.useState('')
   if (loading) return <LoadingSpinner message="Loading bills..." />
@@ -79,7 +79,7 @@ function BillList({ navigate }: ModuleProps) {
   )
 }
 
-function BillForm({ navigate }: ModuleProps) {
+function BillForm({ navigate }: any) {
   const { business } = useBusiness()
   const { data: parties } = useFetch<Party[]>('/api/parties?type=SUPPLIER')
   const { data: taxRates } = useFetch<TaxRate[]>('/api/tax-rates')
@@ -87,14 +87,14 @@ function BillForm({ navigate }: ModuleProps) {
     partyId: '', date: new Date().toISOString().split('T')[0],
     dueDate: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
     supplierInvoiceNumber: '', reference: '', notes: '',
-    lines: [{ description: '', quantity: 1, unitPrice: 0, discount: 0, taxRate: business?.vatRegistered ? Number(business.vatRate) : 0 }],
+    lines: [{ description: '', quantity: 1, unitPrice: 0, discount: 0, taxRateId: undefined as any, taxRate: business?.vatRegistered ? Number(business.vatRate) : 0 }],
   })
   const [saving, setSaving] = React.useState(false)
 
   const vatRate = business?.vatRegistered ? Number(business.vatRate) : 0
   const currency = business?.baseCurrency || 'AED'
 
-  const calcLines = form.lines.map(l => {
+  const calcLines: any[] = (form.lines as any[]).map(l => {
     const gross = l.quantity * l.unitPrice
     const net = gross - gross * (l.discount / 100)
     const tax = net * ((l.taxRate ?? vatRate) / 100)
@@ -109,7 +109,7 @@ function BillForm({ navigate }: ModuleProps) {
     setSaving(true)
     const res = await fetch('/api/bills', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...form, post, lines: form.lines.map(l => ({ ...l, taxRateId: l.taxRateId, taxRate: l.taxRate ?? vatRate })) }),
+      body: JSON.stringify({ ...form, post, lines: form.lines.map(l => ({ ...l, taxRateId: (l as any).taxRateId, taxRate: l.taxRate ?? vatRate })) }),
     })
     if (res.ok) { const b = await res.json(); toast.success(post ? 'Bill posted' : 'Bill saved'); navigate('bills', { action: 'view', id: b.id }) }
     else { const e = await res.json(); toast.error(e.error || 'Failed') }
@@ -134,7 +134,7 @@ function BillForm({ navigate }: ModuleProps) {
 
       <Card><CardContent className="p-5">
         <div className="mb-3 flex items-center justify-between"><h3 className="font-semibold">Line Items</h3>
-          <Button size="sm" variant="outline" onClick={() => setForm({ ...form, lines: [...form.lines, { description: '', quantity: 1, unitPrice: 0, discount: 0, taxRate: vatRate }] })}><Plus className="mr-1 h-4 w-4" /> Add Line</Button></div>
+          <Button size="sm" variant="outline" onClick={() => setForm({ ...form, lines: [...form.lines, { description: '', quantity: 1, unitPrice: 0, discount: 0, taxRateId: undefined, taxRate: vatRate }] })}><Plus className="mr-1 h-4 w-4" /> Add Line</Button></div>
         <Table>
           <TableHeader><TableRow><TableHead>Description</TableHead><TableHead className="w-20">Qty</TableHead><TableHead className="w-28">Price</TableHead><TableHead className="w-20">Disc%</TableHead><TableHead className="w-28">Tax</TableHead><TableHead className="w-28 text-right">Amount</TableHead><TableHead className="w-10"></TableHead></TableRow></TableHeader>
           <TableBody>
@@ -144,7 +144,7 @@ function BillForm({ navigate }: ModuleProps) {
                 <TableCell><Input type="number" step="0.01" value={l.quantity} onChange={e => { const lines = [...form.lines]; lines[i] = { ...lines[i], quantity: parseFloat(e.target.value) || 0 }; setForm({ ...form, lines }) }} /></TableCell>
                 <TableCell><Input type="number" step="0.01" value={l.unitPrice} onChange={e => { const lines = [...form.lines]; lines[i] = { ...lines[i], unitPrice: parseFloat(e.target.value) || 0 }; setForm({ ...form, lines }) }} /></TableCell>
                 <TableCell><Input type="number" step="0.01" value={l.discount} onChange={e => { const lines = [...form.lines]; lines[i] = { ...lines[i], discount: parseFloat(e.target.value) || 0 }; setForm({ ...form, lines }) }} /></TableCell>
-                <TableCell><Select value={l.taxRateId || `_rate_${l.taxRate}`} onValueChange={v => { if (v.startsWith('_rate_')) { const lines = [...form.lines]; lines[i] = { ...lines[i], taxRate: parseFloat(v.replace('_rate_', '')), taxRateId: undefined }; setForm({ ...form, lines }) } else { const tr = taxRates?.find(t => t.id === v); const lines = [...form.lines]; lines[i] = { ...lines[i], taxRateId: v, taxRate: tr?.rate }; setForm({ ...form, lines }) } }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value={`_rate_${vatRate}`}>VAT {vatRate}%</SelectItem><SelectItem value="_rate_0">No Tax</SelectItem>{taxRates?.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent></Select></TableCell>
+                <TableCell><Select value={(l as any).taxRateId || `_rate_${l.taxRate}`} onValueChange={v => { if (v.startsWith('_rate_')) { const lines = [...form.lines]; lines[i] = { ...lines[i], taxRate: parseFloat(v.replace('_rate_', '')), taxRateId: undefined }; setForm({ ...form, lines }) } else { const tr = taxRates?.find(t => t.id === v); const lines = [...form.lines]; lines[i] = { ...lines[i], taxRateId: v, taxRate: tr?.rate ?? 0 }; setForm({ ...form, lines }) } }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value={`_rate_${vatRate}`}>VAT {vatRate}%</SelectItem><SelectItem value="_rate_0">No Tax</SelectItem>{taxRates?.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent></Select></TableCell>
                 <TableCell className="text-right font-medium">{fmtMoney(l.lineTotal + l.lineTax, currency)}</TableCell>
                 <TableCell><Button variant="ghost" size="icon" className="h-8 w-8 text-red-600" onClick={() => setForm({ ...form, lines: form.lines.filter((_, idx) => idx !== i) })} disabled={form.lines.length === 1}><Trash2 className="h-3.5 w-3.5" /></Button></TableCell>
               </TableRow>
@@ -162,7 +162,7 @@ function BillForm({ navigate }: ModuleProps) {
   )
 }
 
-function BillView({ navigate, id }: ModuleProps & { id: string }) {
+function BillView({ navigate, id }: any & { id: string }) {
   const { business } = useBusiness()
   const { data: bill, loading } = useFetch<Bill>(`/api/bills?id=${id}`, [id])
   if (loading || !bill) return <LoadingSpinner message="Loading bill..." />

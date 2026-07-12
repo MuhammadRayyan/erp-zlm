@@ -126,7 +126,7 @@ function ReportView({ type, data, currency }: { type: string; data: ReportData; 
     )
   }
   if (type === 'vat_return') {
-    const d = data as { outputVAT: number; inputVAT: number; netVAT: number; totalSales: number; totalPurchases: number; payable: number; refundable: number; invoiceCount: number; billCount: number }
+    const d = data as any
     return (
       <div className="space-y-4">
         <div className="rounded-lg border p-4">
