@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getSession, hasPermission } from '@/lib/auth'
+import { z } from 'zod'
 
 // GET /api/admin/tenants — list all tenants (platform admin only)
 export async function GET() {
@@ -44,7 +45,24 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json()
-  const { name, email, planId, status } = body
+
+  // Validate input with Zod
+  const schema = z.object({
+    name: z.string().min(2, 'Name must be at least 2 characters').max(100),
+    email: z.string().email('Invalid email format'),
+    planId: z.string().optional(),
+    status: z.enum(['ACTIVE', 'TRIAL', 'SUSPENDED', 'CANCELLED']).optional(),
+  })
+
+  const parseResult = schema.safeParse(body)
+  if (!parseResult.success) {
+    return NextResponse.json(
+      { error: 'Validation failed', details: parseResult.error.issues },
+      { status: 400 }
+    )
+  }
+
+  const { name, email, planId, status } = parseResult.data
 
   let slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
   let suffix = 0

@@ -89,14 +89,6 @@ export function validateTRN(trn: string): boolean {
 export function generateEInvoiceUuid(): string {
   // Use Node.js crypto.randomUUID for cryptographically secure UUIDs
   // Required for PINT AE e-invoicing compliance
-  try {
-    return randomUUID()
-  } catch {
-    // Fallback for environments without crypto module
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
-      const r = Math.random() * 16 | 0
-      const v = c === 'x' ? r : (r & 0x3 | 0x8)
-      return v.toString(16)
-    })
-  }
+  // crypto.randomUUID() is available in all Node.js 16+ environments
+  return randomUUID()
 }

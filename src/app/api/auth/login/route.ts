@@ -48,6 +48,22 @@ export async function POST(req: NextRequest) {
       tenantRole: membership?.role || null,
     })
 
+    // Audit log: successful login
+    if (membership?.tenantId) {
+      await db.auditLog.create({
+        data: {
+          businessId: 'system',
+          tenantId: membership.tenantId,
+          userId: user.id,
+          action: 'LOGIN',
+          entityType: 'AUTH',
+          entityId: user.id,
+          description: `User ${user.email} logged in successfully`,
+          ipAddress: ip,
+        },
+      }).catch(() => {}) // Non-blocking — don't fail login if audit fails
+    }
+
     return NextResponse.json({
       id: user.id,
       email: user.email,

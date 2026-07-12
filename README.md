@@ -413,13 +413,15 @@ See **TEST_CREDENTIALS.md** for the complete permission matrix and UAT testing g
 
 1. **TypeScript type annotations:** 55 pre-existing type annotation errors remain from rapid feature development. These are type mismatches (not runtime bugs) — the application runs correctly. `ignoreBuildErrors: true` is enabled in `next.config.ts` as a temporary measure. These should be resolved over time.
 
-2. **Journal entry numbering:** Uses `count + 1` which is not atomic under concurrent requests. Should use a Prisma transaction with `SELECT FOR UPDATE` for production scale.
+2. **No automated test suite:** Financial calculation logic should have unit tests. Recommended: Vitest for unit tests, Playwright for E2E tests.
 
-3. **No automated test suite:** Financial calculation logic should have unit tests. Recommended: Vitest for unit tests, Playwright for E2E tests.
+3. **No email verification:** Registration doesn't require email verification. Should be added before public launch.
 
-4. **No email verification:** Registration doesn't require email verification. Should be added before public launch.
+4. **No payment gateway:** SaaS billing is manual (license keys). Stripe/Telr integration needed for automated billing.
 
-5. **No payment gateway:** SaaS billing is manual (license keys). Stripe/Telr integration needed for automated billing.
+5. **Rate limiter is in-memory:** The rate limiter uses an in-memory `Map` which works for single-instance deployments (Docker with one container). For horizontal scaling (multiple replicas, serverless), replace with a Redis-backed limiter like `@upstash/ratelimit`.
+
+6. **No FTA API submission:** E-invoicing UUID generation is implemented, but actual submission to the UAE FTA clearance API is not yet integrated. This requires an FTA-issued certificate and ASP partnership.
 
 ---
 
@@ -431,17 +433,22 @@ See **TEST_CREDENTIALS.md** for the complete permission matrix and UAT testing g
 - [x] Rate limiting on login (10 attempts/15min in production)
 - [x] Input validation with Zod schemas
 - [x] Prisma parameterized queries (SQL injection protection)
-- [x] IDOR protection (all routes verify `businessId`)
-- [x] Global API route protection middleware
+- [x] IDOR protection (all routes verify `businessId` — fixed on GET, PUT, DELETE)
+- [x] Global API route protection middleware (with cryptographic JWT verification via `jose`)
 - [x] Security HTTP headers (HSTS, X-Frame-Options, etc.)
 - [x] `.env` excluded from git (use `.env.example` as template)
+- [x] Database file (`db/custom.db`) excluded from git
 - [x] JWT secret required in production (crashes if missing)
+- [x] JWT signature verified in middleware (not just structural check)
 - [x] Tenant isolation on all business-scoped queries
 - [x] Permission checks (RBAC) on all mutating operations
+- [x] Zod input validation on admin mutation routes
 - [x] Period locking (prevent edits in closed periods)
 - [x] Posted entry immutability (only DRAFT can be edited)
-- [x] Audit trail on all mutations
-- [x] Cryptographic UUID for e-invoicing (crypto.randomUUID)
+- [x] Audit trail on all mutations (including login/logout)
+- [x] Cryptographic UUID for e-invoicing (crypto.randomUUID, no fallback)
+- [x] Atomic journal numbering (uses Prisma transactions)
+- [x] Login/logout audit logging
 
 ---
 

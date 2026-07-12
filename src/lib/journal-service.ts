@@ -37,9 +37,13 @@ export async function postJournalEntry(params: PostJournalParams): Promise<strin
     throw new Error(`Journal entry not balanced. Debits: ${totalDebit}, Credits: ${totalCredit}`)
   }
 
-  // Generate sequential journal number
-  const count = await db.journalEntry.count({ where: { businessId } })
-  const number = `JE-${String(count + 1).padStart(6, '0')}`
+  // Generate sequential journal number atomically using a transaction
+  // This prevents race conditions where two concurrent requests get the same count
+  const number = await db.$transaction(async (tx) => {
+    const count = await tx.journalEntry.count({ where: { businessId } })
+    const num = `JE-${String(count + 1).padStart(6, '0')}`
+    return num
+  })
 
   // Create the journal entry with lines
   const entry = await db.journalEntry.create({
@@ -79,8 +83,11 @@ export async function reverseJournalEntry(entryId: string, userId: string, reaso
   if (original.isReversed) throw new Error('Journal entry already reversed')
 
   // Create reversal entry with swapped debits/credits
-  const count = await db.journalEntry.count({ where: { businessId: original.businessId } })
-  const number = `JE-${String(count + 1).padStart(6, '0')}`
+  // Use transaction for atomic numbering
+  const number = await db.$transaction(async (tx) => {
+    const count = await tx.journalEntry.count({ where: { businessId: original.businessId } })
+    return `JE-${String(count + 1).padStart(6, '0')}`
+  })
 
   const reversal = await db.journalEntry.create({
     data: {

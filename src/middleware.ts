@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { jwtVerify } from 'jose'
 
 // Routes that don't require authentication
 const PUBLIC_ROUTES = [
@@ -13,11 +14,16 @@ function isPublicRoute(pathname: string): boolean {
   return PUBLIC_ROUTES.some(route => pathname.startsWith(route))
 }
 
+// Get JWT secret as Uint8Array for jose
+function getJwtSecret(): Uint8Array {
+  const secret = process.env.JWT_SECRET || 'dev-only-secret-not-for-production'
+  return new TextEncoder().encode(secret)
+}
+
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
 
-  // Skip non-API routes (let Next.js handle page rendering)
-  // The client-side auth check handles page-level protection
+  // Skip non-API routes (client-side auth handles page-level protection)
   if (!pathname.startsWith('/api/')) {
     return NextResponse.next()
   }
@@ -27,7 +33,7 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next()
   }
 
-  // For all other API routes, check for session cookie
+  // For all other API routes, verify session cookie
   const sessionCookie = req.cookies.get('accounterp_session')?.value
 
   if (!sessionCookie) {
@@ -37,21 +43,14 @@ export async function middleware(req: NextRequest) {
     )
   }
 
-  // Verify JWT token (defense-in-depth — routes also check via getSession)
+  // Verify JWT cryptographic signature using jose (Edge-compatible)
   try {
-    const secret = process.env.JWT_SECRET || 'dev-only-secret-not-for-production'
-    // Basic verification — full verification happens in getSession()
-    // We just check the token exists and is well-formed here
-    const parts = sessionCookie.split('.')
-    if (parts.length !== 3) {
-      return NextResponse.json(
-        { error: 'Invalid session' },
-        { status: 401 }
-      )
-    }
+    const secret = getJwtSecret()
+    await jwtVerify(sessionCookie, secret)
   } catch {
+    // Token is invalid, expired, or signature doesn't match
     return NextResponse.json(
-      { error: 'Invalid session' },
+      { error: 'Invalid or expired session' },
       { status: 401 }
     )
   }
@@ -60,6 +59,6 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  // Run middleware on all API routes except auth public routes
+  // Run middleware on all API routes
   matcher: '/api/:path*',
 }

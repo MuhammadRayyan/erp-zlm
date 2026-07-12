@@ -1,6 +1,11 @@
 // ============================================================
 // RATE LIMITER — simple in-memory, per-key limiter.
 // ============================================================
+// ⚠️ WARNING: This rate limiter is in-memory and NOT safe for
+// multi-instance deployments (Docker replicas, serverless).
+// For horizontal scaling, replace with a Redis-backed limiter:
+// https://github.com/upstash/ratelimit
+// ============================================================
 
 interface Bucket {
   count: number

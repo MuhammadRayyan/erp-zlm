@@ -17,8 +17,9 @@ export async function GET(req: NextRequest) {
   const limit = parseInt(searchParams.get('limit') || '50')
 
   if (id) {
-    const invoice = await db.salesInvoice.findUnique({
-      where: { id },
+    // SECURITY: Verify invoice belongs to current business (tenant isolation)
+    const invoice = await db.salesInvoice.findFirst({
+      where: { id, businessId },
       include: {
         party: true,
         lines: { include: { taxRate: true }, orderBy: { position: 'asc' } },
