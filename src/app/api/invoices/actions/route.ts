@@ -71,8 +71,9 @@ export async function POST(req: NextRequest) {
     }
 
     // Reverse the journal entry
-    const je = await db.journalEntry.findFirst({ where: { sourceType: 'SALES_INVOICE', sourceId: id } })
-    if (je) {
+    // Reverse ALL related journal entries (not just the first)
+    const journalEntries = await db.journalEntry.findMany({ where: { sourceType: 'SALES_INVOICE', sourceId: id } })
+    for (const je of journalEntries) {
       await reverseJournalEntry(je.id, user.id, `Void of invoice ${invoice.number}`)
     }
 

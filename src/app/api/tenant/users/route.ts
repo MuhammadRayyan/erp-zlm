@@ -139,7 +139,7 @@ export async function DELETE(req: NextRequest) {
   if (!membershipId) return NextResponse.json({ error: 'ID required' }, { status: 400 })
 
   // Prevent removing yourself
-  const membership = await db.userTenant.findUnique({ where: { id: membershipId } })
+  const membership = await db.userTenant.findFirst({ where: { id: membershipId, tenantId: await getCurrentTenantId() || undefined } })
   if (membership?.userId === session.userId) {
     return NextResponse.json({ error: 'Cannot remove yourself' }, { status: 400 })
   }

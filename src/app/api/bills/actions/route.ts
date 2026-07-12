@@ -12,13 +12,12 @@ export async function POST(req: NextRequest) {
   const body = await req.json()
   const { action, id } = body
 
-  const bill = await db.purchaseBill.findUnique({ where: { id }, include: { party: true } })
+  const bill = await db.purchaseBill.findFirst({ where: { id, businessId }, include: { party: true } })
   if (!bill) return NextResponse.json({ error: 'Bill not found' }, { status: 404 })
 
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
   const user = { id: session.userId, name: session.name, email: session.email }
-  if (!user) user = await db.user.create({ data: { email: 'admin@local', name: 'Admin', role: 'ADMIN' } })
 
   if (action === 'post') {
     if (bill.status !== 'DRAFT') return NextResponse.json({ error: 'Only draft bills can be posted' }, { status: 400 })

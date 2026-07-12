@@ -52,7 +52,6 @@ export async function POST(req: NextRequest) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
   const user = { id: session.userId, name: session.name, email: session.email }
-  if (!user) user = await db.user.create({ data: { email: 'admin@local', name: 'Admin', role: 'ADMIN' } })
 
   const amount = toNumber(money(body.amount))
 
@@ -86,7 +85,7 @@ export async function POST(req: NextRequest) {
   // Update invoice/bill amounts paid
   for (const alloc of payment.allocations) {
     if (alloc.invoiceId) {
-      const inv = await db.salesInvoice.findUnique({ where: { id: alloc.invoiceId } })
+      const inv = await db.salesInvoice.findFirst({ where: { id: alloc.invoiceId, businessId } })
       if (inv) {
         const newPaid = toNumber(money(inv.amountPaid).plus(money(alloc.amount)))
         const newStatus = newPaid >= toNumber(money(inv.total)) ? 'PAID' : 'PARTIALLY_PAID'
@@ -94,7 +93,7 @@ export async function POST(req: NextRequest) {
       }
     }
     if (alloc.billId) {
-      const bill = await db.purchaseBill.findUnique({ where: { id: alloc.billId } })
+      const bill = await db.purchaseBill.findFirst({ where: { id: alloc.billId, businessId } })
       if (bill) {
         const newPaid = toNumber(money(bill.amountPaid).plus(money(alloc.amount)))
         const newStatus = newPaid >= toNumber(money(bill.total)) ? 'PAID' : 'PARTIALLY_PAID'

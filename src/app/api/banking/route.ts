@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json(accounts.map(a => ({
     id: a.id, name: a.name, accountNumber: a.accountNumber, bankName: a.bankName,
-    branch: a.branch, iban: a.iban, accountId: a.accountId,
+    branch: a.branch, iban: a.iban, 
     openingBalance: toNumber(a.openingBalance), currentBalance: toNumber(a.currentBalance),
     currency: a.currency, isActive: a.isActive,
     transactionCount: a._count.transactions,
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
       bankName: body.bankName || null,
       branch: body.branch || null,
       iban: body.iban || null,
-      accountId: body.accountId || null,
+      
       openingBalance: body.openingBalance || 0,
       currentBalance: body.openingBalance || 0,
       currency: body.currency || 'AED',

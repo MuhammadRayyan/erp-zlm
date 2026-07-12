@@ -26,7 +26,7 @@ export async function GET() {
     id: l.id,
     key: l.key,
     tenantId: l.tenantId,
-    tenantName: l.tenant?.name || null,
+    tenantName: null as string | null, // Will be populated below
     planName: l.planName,
     type: l.type,
     maxBusinesses: l.maxBusinesses,

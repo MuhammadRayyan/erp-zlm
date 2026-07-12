@@ -26,7 +26,7 @@ export async function GET() {
   const currentTenantId = session.tenantId
 
   // Get current business (verify tenant)
-  let currentBusiness = null
+  let currentBusiness: { id: string; name: string } | null = null
   if (currentBusinessId && currentTenantId) {
     currentBusiness = await db.business.findFirst({
       where: { id: currentBusinessId, tenantId: currentTenantId },

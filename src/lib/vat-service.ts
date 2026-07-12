@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto'
 import { Decimal, money, mul, div, calcVAT, lineTotal, toNumber } from './decimal'
 
 export interface LineItemInput {
@@ -51,27 +52,28 @@ export interface DocumentTotals {
 export function calculateDocumentTotals(lines: LineItemInput[]): DocumentTotals {
   const calculated = lines.map(calculateLine)
 
-  const subtotal = calculated.reduce((s, l) => s + l.grossAmount, 0)
-  const totalDiscount = calculated.reduce((s, l) => s + l.discountAmount, 0)
-  const totalTax = calculated.reduce((s, l) => s + l.taxAmount, 0)
-  const total = calculated.reduce((s, l) => s + l.total, 0)
+  // Use decimal.js for all summations (never native floating point)
+  const subtotal = calculated.reduce((s, l) => s.plus(money(l.grossAmount)), money(0))
+  const totalDiscount = calculated.reduce((s, l) => s.plus(money(l.discountAmount)), money(0))
+  const totalTax = calculated.reduce((s, l) => s.plus(money(l.taxAmount)), money(0))
+  const total = calculated.reduce((s, l) => s.plus(money(l.total)), money(0))
 
   // Group by tax rate for VAT breakdown
   const breakdownMap = new Map<string, { rate: number; category: string; netAmount: number; taxAmount: number; grossAmount: number }>()
   for (const l of calculated) {
     const key = `${l.taxRate}-${l.taxCategory || 'STANDARD_RATED'}`
     const existing = breakdownMap.get(key) || { rate: Number(l.taxRate), category: l.taxCategory || 'STANDARD_RATED', netAmount: 0, taxAmount: 0, grossAmount: 0 }
-    existing.netAmount += l.netAmount
-    existing.taxAmount += l.taxAmount
-    existing.grossAmount += l.total
+    existing.netAmount = toNumber(money(existing.netAmount).plus(money(l.netAmount)))
+    existing.taxAmount = toNumber(money(existing.taxAmount).plus(money(l.taxAmount)))
+    existing.grossAmount = toNumber(money(existing.grossAmount).plus(money(l.total)))
     breakdownMap.set(key, existing)
   }
 
   return {
-    subtotal: Math.round(subtotal * 100) / 100,
-    totalDiscount: Math.round(totalDiscount * 100) / 100,
-    totalTax: Math.round(totalTax * 100) / 100,
-    total: Math.round(total * 100) / 100,
+    subtotal: toNumber(subtotal),
+    totalDiscount: toNumber(totalDiscount),
+    totalTax: toNumber(totalTax),
+    total: toNumber(total),
     taxBreakdown: Array.from(breakdownMap.values()),
   }
 }
@@ -85,9 +87,16 @@ export function validateTRN(trn: string): boolean {
 
 // Generate a PINT AE-compatible UUID for e-invoicing
 export function generateEInvoiceUuid(): string {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
-    const r = Math.random() * 16 | 0
-    const v = c === 'x' ? r : (r & 0x3 | 0x8)
-    return v.toString(16)
-  })
+  // Use Node.js crypto.randomUUID for cryptographically secure UUIDs
+  // Required for PINT AE e-invoicing compliance
+  try {
+    return randomUUID()
+  } catch {
+    // Fallback for environments without crypto module
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+      const r = Math.random() * 16 | 0
+      const v = c === 'x' ? r : (r & 0x3 | 0x8)
+      return v.toString(16)
+    })
+  }
 }

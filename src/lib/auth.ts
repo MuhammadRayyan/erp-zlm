@@ -3,7 +3,11 @@ import jwt from 'jsonwebtoken'
 import { cookies } from 'next/headers'
 import { db } from './db'
 
-const JWT_SECRET = process.env.JWT_SECRET || 'accounterp-dev-secret-change-in-production'
+const JWT_SECRET = process.env.JWT_SECRET
+if (!JWT_SECRET && process.env.NODE_ENV === 'production') {
+  throw new Error('FATAL: JWT_SECRET environment variable must be set in production. Set it in your .env file or environment.')
+}
+const SECRET = JWT_SECRET || 'dev-only-secret-not-for-production'
 const SESSION_COOKIE = 'accounterp_session'
 const TENANT_COOKIE = 'accounterp_tenant'
 const BUSINESS_COOKIE = 'accounterp_business'
@@ -36,12 +40,12 @@ export interface SessionPayload {
 }
 
 export function createSessionToken(payload: SessionPayload): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' })
+  return jwt.sign(payload, SECRET, { expiresIn: '7d' })
 }
 
 export function verifySessionToken(token: string): SessionPayload | null {
   try {
-    return jwt.verify(token, JWT_SECRET) as SessionPayload
+    return jwt.verify(token, SECRET) as SessionPayload
   } catch {
     return null
   }
@@ -218,7 +222,7 @@ export async function ensureTenantContext(): Promise<string> {
     }
     const first = await db.tenant.findFirst({ orderBy: { createdAt: 'asc' } })
     if (first) {
-      cookieStore.set(TENANT_COOKIE, first.id, { path: '/', maxAge: 60 * 60 * 24 * 365 })
+      cookieStore.set(TENANT_COOKIE, first.id, { path: '/', maxAge: 60 * 60 * 24 * 365, httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax' })
       return first.id
     }
     throw new Error('No tenants found')
@@ -228,7 +232,20 @@ export async function ensureTenantContext(): Promise<string> {
   throw new Error('No tenant context')
 }
 
+// Custom error class for auth errors — allows API routes to distinguish auth errors
+export class AuthError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'AuthError'
+  }
+}
+
 export async function ensureBusinessId(): Promise<string> {
+  const session = await getSession()
+  if (!session) {
+    throw new AuthError('Not authenticated')
+  }
+
   const businessId = await getCurrentBusinessId()
   if (businessId) {
     // Verify it belongs to current tenant
@@ -256,6 +273,6 @@ export async function ensureBusinessId(): Promise<string> {
   }
 
   const cookieStore = await cookies()
-  cookieStore.set(BUSINESS_COOKIE, business.id, { path: '/', maxAge: 60 * 60 * 24 * 365 })
+  cookieStore.set(BUSINESS_COOKIE, business.id, { path: '/', maxAge: 60 * 60 * 24 * 365, httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax' })
   return business.id
 }

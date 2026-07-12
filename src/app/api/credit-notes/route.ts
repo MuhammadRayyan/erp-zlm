@@ -53,7 +53,6 @@ export async function POST(req: NextRequest) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
   const user = { id: session.userId, name: session.name, email: session.email }
-  if (!user) user = await db.user.create({ data: { email: 'admin@local', name: 'Admin', role: 'ADMIN' } })
 
   const cn = await db.creditNote.create({
     data: {

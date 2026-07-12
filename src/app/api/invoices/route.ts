@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { ensureBusinessId, getCurrentTenantId, getSession } from '@/lib/auth'
+import { ensureBusinessId, getCurrentTenantId, getSession , AuthError } from '@/lib/auth'
 import { postJournalEntry } from '@/lib/journal-service'
 import { calculateLine, calculateDocumentTotals, generateEInvoiceUuid } from '@/lib/vat-service'
 import { toNumber, money } from '@/lib/decimal'
@@ -194,7 +194,7 @@ export async function PUT(req: NextRequest) {
   const id = searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 })
 
-  const invoice = await db.salesInvoice.findUnique({ where: { id } })
+  const invoice = await db.salesInvoice.findFirst({ where: { id, businessId } })
   if (!invoice) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   if (invoice.status !== 'DRAFT') {
     return NextResponse.json({ error: 'Only draft invoices can be edited' }, { status: 400 })
@@ -257,11 +257,16 @@ export async function PUT(req: NextRequest) {
 
 // DELETE /api/invoices?id=xxx (only if DRAFT)
 export async function DELETE(req: NextRequest) {
+  let businessId: string
+  try { businessId = await ensureBusinessId() } catch (e) {
+    if (e instanceof AuthError || (e as Error).message === 'Not authenticated') return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+    return NextResponse.json({ error: (e as Error).message }, { status: 500 })
+  }
   const { searchParams } = new URL(req.url)
   const id = searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 })
 
-  const invoice = await db.salesInvoice.findUnique({ where: { id } })
+  const invoice = await db.salesInvoice.findFirst({ where: { id, businessId } })
   if (!invoice) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   if (invoice.status !== 'DRAFT') {
     return NextResponse.json({ error: 'Only draft invoices can be deleted' }, { status: 400 })

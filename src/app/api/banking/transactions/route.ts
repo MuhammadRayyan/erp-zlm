@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { toNumber } from '@/lib/decimal'
+import { ensureBusinessId, AuthError } from '@/lib/auth'
 
 // GET /api/banking/transactions?accountId=xxx
 export async function GET(req: NextRequest) {
@@ -23,6 +24,11 @@ export async function GET(req: NextRequest) {
 
 // POST — add transaction
 export async function POST(req: NextRequest) {
+  let businessId: string
+  try { businessId = await ensureBusinessId() } catch (e) {
+    if (e instanceof AuthError) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+    return NextResponse.json({ error: (e as Error).message }, { status: 500 })
+  }
   const body = await req.json()
   const amount = Number(body.amount)
   const tx = await db.bankTransaction.create({
@@ -37,7 +43,7 @@ export async function POST(req: NextRequest) {
   })
 
   // Update bank account balance
-  const ba = await db.bankAccount.findUnique({ where: { id: body.bankAccountId } })
+  const ba = await db.bankAccount.findFirst({ where: { id: body.bankAccountId, businessId } })
   if (ba) {
     const newBalance = Number(ba.currentBalance) + (body.type === 'WITHDRAWAL' ? -Math.abs(amount) : Math.abs(amount))
     await db.bankAccount.update({ where: { id: ba.id }, data: { currentBalance: newBalance } })

@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
   // Get template
   let template
   if (templateId) {
-    template = await db.pdfTemplate.findUnique({ where: { id: templateId } })
+    template = await db.pdfTemplate.findFirst({ where: { id: templateId, businessId } })
   } else if (htmlContent) {
     template = { htmlContent, cssContent: cssContent || '' }
   } else {

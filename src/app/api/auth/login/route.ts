@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { verifyPassword, hashPassword, setSession } from '@/lib/auth'
+import { checkLoginRateLimit } from '@/lib/rate-limit'
 import { z } from 'zod'
 
 const loginSchema = z.object({
@@ -10,6 +11,11 @@ const loginSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
+    // Rate limiting — prevent brute force attacks
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0] || req.headers.get('x-real-ip') || 'unknown'
+    if (!checkLoginRateLimit(ip)) {
+      return NextResponse.json({ error: 'Too many login attempts. Please try again later.' }, { status: 429, headers: { 'Retry-After': '300' } })
+    }
     const body = await req.json()
     const { email, password } = loginSchema.parse(body)
 

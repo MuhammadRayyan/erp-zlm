@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { ensureBusinessId, getCurrentTenantId, getSession } from '@/lib/auth'
+import { ensureBusinessId, getCurrentTenantId, getSession , AuthError } from '@/lib/auth'
 import { postJournalEntry, reverseJournalEntry } from '@/lib/journal-service'
 import { calculateLine, calculateDocumentTotals } from '@/lib/vat-service'
 import { toNumber, money } from '@/lib/decimal'
@@ -85,7 +85,6 @@ export async function POST(req: NextRequest) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
   const user = { id: session.userId, name: session.name, email: session.email }
-  if (!user) user = await db.user.create({ data: { email: 'admin@local', name: 'Admin', role: 'ADMIN' } })
 
   const bill = await db.purchaseBill.create({
     data: {
@@ -149,11 +148,16 @@ export async function POST(req: NextRequest) {
 
 // DELETE /api/bills?id=xxx (only if DRAFT)
 export async function DELETE(req: NextRequest) {
+  let businessId: string
+  try { businessId = await ensureBusinessId() } catch (e) {
+    if (e instanceof AuthError) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+    return NextResponse.json({ error: (e as Error).message }, { status: 500 })
+  }
   const { searchParams } = new URL(req.url)
   const id = searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 })
 
-  const bill = await db.purchaseBill.findUnique({ where: { id } })
+  const bill = await db.purchaseBill.findFirst({ where: { id, businessId } })
   if (!bill) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   if (bill.status !== 'DRAFT') {
     return NextResponse.json({ error: 'Only draft bills can be deleted' }, { status: 400 })

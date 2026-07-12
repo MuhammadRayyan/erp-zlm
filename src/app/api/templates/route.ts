@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { ensureBusinessId, getCurrentTenantId } from '@/lib/auth'
+import { ensureBusinessId, getCurrentTenantId , AuthError } from '@/lib/auth'
 
 // GET /api/templates?doctype=xxx
 export async function GET(req: NextRequest) {
@@ -44,11 +44,15 @@ export async function POST(req: NextRequest) {
 
 // PUT
 export async function PUT(req: NextRequest) {
+  let businessId: string
+  try { businessId = await ensureBusinessId() } catch (e) {
+    if (e instanceof AuthError) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+    return NextResponse.json({ error: (e as Error).message }, { status: 500 })
+  }
   const { searchParams } = new URL(req.url)
   const id = searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 })
 
-  const businessId = await ensureBusinessId()
   const body = await req.json()
 
   if (body.isDefault) {
@@ -73,7 +77,7 @@ export async function DELETE(req: NextRequest) {
   const id = searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 })
 
-  const template = await db.pdfTemplate.findUnique({ where: { id } })
+  const template = await db.pdfTemplate.findFirst({ where: { id, businessId } })
   if (template?.isSystem) {
     return NextResponse.json({ error: 'System templates cannot be deleted' }, { status: 400 })
   }
