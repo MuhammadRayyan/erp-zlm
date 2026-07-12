@@ -15,8 +15,9 @@ export async function GET(req: NextRequest) {
   const limit = parseInt(searchParams.get('limit') || '50')
 
   if (id) {
-    const bill = await db.purchaseBill.findUnique({
-      where: { id },
+    // SECURITY: Verify bill belongs to current business (tenant isolation)
+    const bill = await db.purchaseBill.findFirst({
+      where: { id, businessId },
       include: { party: true, lines: { include: { taxRate: true }, orderBy: { position: 'asc' } } },
     })
     if (!bill) return NextResponse.json({ error: 'Not found' }, { status: 404 })

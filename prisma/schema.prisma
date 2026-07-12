@@ -1,6 +1,7 @@
 // AccountERP — Complete Prisma Schema (Multi-Tenant SaaS Edition)
 // UAE-compliant double-entry accounting ERP
-// Database: SQLite (dev) / PostgreSQL (prod) — switchable via DATABASE_URL
+// Database: SQLite (dev) / PostgreSQL (prod)
+// To switch to PostgreSQL: change provider to "postgresql" and update DATABASE_URL
 // Tenant isolation: row-level via tenantId on all business-scoped tables
 
 generator client {
@@ -8,6 +9,9 @@ generator client {
 }
 
 datasource db {
+  // Default: SQLite for local development
+  // For production: change to provider = "postgresql"
+  // Then run: bun run db:push
   provider = "sqlite"
   url      = env("DATABASE_URL")
 }

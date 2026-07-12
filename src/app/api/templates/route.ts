@@ -55,6 +55,10 @@ export async function PUT(req: NextRequest) {
 
   const body = await req.json()
 
+  // SECURITY: Verify template belongs to current business before updating
+  const existing = await db.pdfTemplate.findFirst({ where: { id, businessId } })
+  if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
   if (body.isDefault) {
     await db.pdfTemplate.updateMany({ where: { businessId, doctype: body.doctype, isDefault: true }, data: { isDefault: false } })
   }
@@ -73,12 +77,19 @@ export async function PUT(req: NextRequest) {
 
 // DELETE
 export async function DELETE(req: NextRequest) {
+  let businessId: string
+  try { businessId = await ensureBusinessId() } catch (e) {
+    if (e instanceof AuthError) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+    return NextResponse.json({ error: (e as Error).message }, { status: 500 })
+  }
   const { searchParams } = new URL(req.url)
   const id = searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 })
 
+  // SECURITY: Verify template belongs to current business (tenant isolation)
   const template = await db.pdfTemplate.findFirst({ where: { id, businessId } })
-  if (template?.isSystem) {
+  if (!template) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (template.isSystem) {
     return NextResponse.json({ error: 'System templates cannot be deleted' }, { status: 400 })
   }
 

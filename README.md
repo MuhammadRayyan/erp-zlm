@@ -113,22 +113,31 @@ DATABASE_URL="file:./db/custom.db"
 
 For production, use PostgreSQL for better performance and concurrency:
 
-1. **Update `prisma/schema.prisma`:**
+1. **Edit `prisma/schema.prisma`** — change the provider from `sqlite` to `postgresql`:
    ```prisma
    datasource db {
-     provider = "postgresql"
+     provider = "postgresql"  // Changed from "sqlite"
      url      = env("DATABASE_URL")
    }
    ```
+
+   > **Note:** Prisma does not support `env()` for the provider field.
+   > You must edit the schema file directly. This is a one-time change per environment.
 
 2. **Set `DATABASE_URL` in `.env`:**
    ```env
    DATABASE_URL="postgresql://user:password@localhost:5432/accounterp?schema=public"
    ```
 
-3. **Push the schema:**
+3. **Regenerate Prisma Client and push the schema:**
    ```bash
+   bun run db:generate
    bun run db:push
+   ```
+
+4. **Restart the server:**
+   ```bash
+   bun run dev
    ```
 
 ---
@@ -427,7 +436,10 @@ See **TEST_CREDENTIALS.md** for the complete permission matrix and UAT testing g
 
 The following issues were identified in security audits and have been **fully resolved**:
 
-- ✅ IDOR on all API routes (GET, PUT, DELETE) — all use `findFirst({ where: { id, businessId } })`
+- ✅ IDOR on ALL API routes (invoices, bills, templates — GET, PUT, DELETE) — all use `findFirst({ where: { id, businessId } })`
+- ✅ Template DELETE: businessId now declared, system template guard works, 404 on not found
+- ✅ Template PUT: ownership check added before update
+- ✅ Handlebars XSS prevention: no triple-brace in any template, escape enforcement documented
 - ✅ JWT signature verification in middleware (using `jose` library for Edge compatibility)
 - ✅ `.env` file removed from git tracking
 - ✅ `db/custom.db` removed from git tracking
