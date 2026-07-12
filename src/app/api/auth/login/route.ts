@@ -21,11 +21,37 @@ export async function POST(req: NextRequest) {
 
     const user = await db.user.findUnique({ where: { email: email.toLowerCase() } })
     if (!user || !user.passwordHash || !user.isActive) {
+      // Audit log: failed login (user not found or inactive)
+      await db.auditLog.create({
+        data: {
+          businessId: 'system',
+          tenantId: 'system',
+          userId: user?.id || 'unknown',
+          action: 'LOGIN_FAILED',
+          entityType: 'AUTH',
+          entityId: user?.id || 'unknown',
+          description: `Failed login attempt for ${email} (user not found or inactive)`,
+          ipAddress: ip,
+        },
+      }).catch(() => {})
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
     }
 
     const valid = await verifyPassword(password, user.passwordHash)
     if (!valid) {
+      // Audit log: failed login (wrong password)
+      await db.auditLog.create({
+        data: {
+          businessId: 'system',
+          tenantId: 'system',
+          userId: user.id,
+          action: 'LOGIN_FAILED',
+          entityType: 'AUTH',
+          entityId: user.id,
+          description: `Failed login attempt for ${email} (invalid password)`,
+          ipAddress: ip,
+        },
+      }).catch(() => {})
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
     }
 
@@ -48,21 +74,19 @@ export async function POST(req: NextRequest) {
       tenantRole: membership?.role || null,
     })
 
-    // Audit log: successful login
-    if (membership?.tenantId) {
-      await db.auditLog.create({
-        data: {
-          businessId: 'system',
-          tenantId: membership.tenantId,
-          userId: user.id,
-          action: 'LOGIN',
-          entityType: 'AUTH',
-          entityId: user.id,
-          description: `User ${user.email} logged in successfully`,
-          ipAddress: ip,
-        },
-      }).catch(() => {}) // Non-blocking — don't fail login if audit fails
-    }
+    // Audit log: successful login (works for both platform admin and tenant users)
+    await db.auditLog.create({
+      data: {
+        businessId: 'system',
+        tenantId: membership?.tenantId || 'system',
+        userId: user.id,
+        action: 'LOGIN',
+        entityType: 'AUTH',
+        entityId: user.id,
+        description: `User ${user.email} logged in successfully${user.role === 'PLATFORM_ADMIN' ? ' (Platform Admin)' : ''}`,
+        ipAddress: ip,
+      },
+    }).catch(() => {}) // Non-blocking — don't fail login if audit fails
 
     return NextResponse.json({
       id: user.id,

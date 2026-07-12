@@ -419,9 +419,29 @@ See **TEST_CREDENTIALS.md** for the complete permission matrix and UAT testing g
 
 4. **No payment gateway:** SaaS billing is manual (license keys). Stripe/Telr integration needed for automated billing.
 
-5. **Rate limiter is in-memory:** The rate limiter uses an in-memory `Map` which works for single-instance deployments (Docker with one container). For horizontal scaling (multiple replicas, serverless), replace with a Redis-backed limiter like `@upstash/ratelimit`.
+5. **Rate limiter is in-memory:** The rate limiter uses an in-memory `Map` which works for single-instance deployments (Docker with one container). For horizontal scaling (multiple replicas, serverless), replace with a Redis-backed limiter like `@upstash/ratelimit`. See warning comment in `src/lib/rate-limit.ts`.
 
 6. **No FTA API submission:** E-invoicing UUID generation is implemented, but actual submission to the UAE FTA clearance API is not yet integrated. This requires an FTA-issued certificate and ASP partnership.
+
+### Resolved Issues (Previously Known)
+
+The following issues were identified in security audits and have been **fully resolved**:
+
+- ✅ IDOR on all API routes (GET, PUT, DELETE) — all use `findFirst({ where: { id, businessId } })`
+- ✅ JWT signature verification in middleware (using `jose` library for Edge compatibility)
+- ✅ `.env` file removed from git tracking
+- ✅ `db/custom.db` removed from git tracking
+- ✅ `Math.random()` fallback removed from UUID generation
+- ✅ Journal entry numbering race condition — count + create now in single `$transaction`
+- ✅ Zod validation on all admin mutation routes (POST + PUT)
+- ✅ Login audit logging (successful + failed attempts + platform admin)
+- ✅ Logout audit logging
+- ✅ All auth cookies have `httpOnly`, `secure`, `sameSite` flags
+- ✅ Rate limiting on login and register routes
+- ✅ Security HTTP headers (HSTS, X-Frame-Options, etc.)
+- ✅ `reactStrictMode: true`
+- ✅ Password minimum 8 characters
+- ✅ Invoice voiding reverses ALL related journal entries
 
 ---
 

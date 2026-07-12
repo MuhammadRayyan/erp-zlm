@@ -109,24 +109,44 @@ export async function PUT(req: NextRequest) {
   if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 })
 
   const body = await req.json()
+
+  // Validate input with Zod
+  const updateSchema = z.object({
+    name: z.string().min(2).max(100).optional(),
+    email: z.string().email().optional(),
+    phone: z.string().max(50).optional(),
+    status: z.enum(['ACTIVE', 'TRIAL', 'SUSPENDED', 'CANCELLED']).optional(),
+    planId: z.string().optional(),
+    subscriptionStatus: z.enum(['ACTIVE', 'TRIAL', 'PAST_DUE', 'CANCELLED', 'PAUSED']).optional(),
+  })
+
+  const parseResult = updateSchema.safeParse(body)
+  if (!parseResult.success) {
+    return NextResponse.json(
+      { error: 'Validation failed', details: parseResult.error.issues },
+      { status: 400 }
+    )
+  }
+
+  const { name, email, phone, status, planId, subscriptionStatus } = parseResult.data
   const tenant = await db.tenant.update({
     where: { id },
     data: {
-      name: body.name,
-      email: body.email,
-      phone: body.phone,
-      status: body.status,
+      ...(name && { name }),
+      ...(email && { email }),
+      ...(phone !== undefined && { phone }),
+      ...(status && { status }),
     },
   })
 
   // Update subscription plan if provided
-  if (body.planId) {
+  if (planId) {
     const existing = await db.subscription.findUnique({ where: { tenantId: id } })
     if (existing) {
-      await db.subscription.update({ where: { id: existing.id }, data: { planId: body.planId, status: body.subscriptionStatus } })
+      await db.subscription.update({ where: { id: existing.id }, data: { planId, status: subscriptionStatus || 'ACTIVE' } })
     } else {
       await db.subscription.create({
-        data: { tenantId: id, planId: body.planId, status: body.subscriptionStatus || 'ACTIVE', billingCycle: 'MONTHLY', currentPeriodStart: new Date(), currentPeriodEnd: new Date(Date.now() + 30 * 86400000) },
+        data: { tenantId: id, planId, status: subscriptionStatus || 'ACTIVE', billingCycle: 'MONTHLY', currentPeriodStart: new Date(), currentPeriodEnd: new Date(Date.now() + 30 * 86400000) },
       })
     }
   }

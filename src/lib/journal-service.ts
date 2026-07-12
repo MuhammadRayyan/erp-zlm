@@ -37,37 +37,35 @@ export async function postJournalEntry(params: PostJournalParams): Promise<strin
     throw new Error(`Journal entry not balanced. Debits: ${totalDebit}, Credits: ${totalCredit}`)
   }
 
-  // Generate sequential journal number atomically using a transaction
-  // This prevents race conditions where two concurrent requests get the same count
-  const number = await db.$transaction(async (tx) => {
+  // Create the journal entry with lines inside a transaction
+  // This ensures the count + create are atomic — no race condition
+  const entry = await db.$transaction(async (tx) => {
     const count = await tx.journalEntry.count({ where: { businessId } })
-    const num = `JE-${String(count + 1).padStart(6, '0')}`
-    return num
-  })
+    const number = `JE-${String(count + 1).padStart(6, '0')}`
 
-  // Create the journal entry with lines
-  const entry = await db.journalEntry.create({
-    data: {
-      businessId,
-      number,
-      date,
-      reference,
-      description,
-      sourceType,
-      sourceId,
-      isPosted: true,
-      postedAt: new Date(),
-      createdById: userId,
-      lines: {
-        create: lines.map(l => ({
-          accountId: l.accountId,
-          debit: new Decimal(l.debit || 0),
-          credit: new Decimal(l.credit || 0),
-          description: l.description,
-          partyId: l.partyId,
-        })),
+    return tx.journalEntry.create({
+      data: {
+        businessId,
+        number,
+        date,
+        reference,
+        description,
+        sourceType,
+        sourceId,
+        isPosted: true,
+        postedAt: new Date(),
+        createdById: userId,
+        lines: {
+          create: lines.map(l => ({
+            accountId: l.accountId,
+            debit: new Decimal(l.debit || 0),
+            credit: new Decimal(l.credit || 0),
+            description: l.description,
+            partyId: l.partyId,
+          })),
+        },
       },
-    },
+    })
   })
 
   return entry.id
@@ -83,34 +81,34 @@ export async function reverseJournalEntry(entryId: string, userId: string, reaso
   if (original.isReversed) throw new Error('Journal entry already reversed')
 
   // Create reversal entry with swapped debits/credits
-  // Use transaction for atomic numbering
-  const number = await db.$transaction(async (tx) => {
+  // Use transaction for atomic numbering + create
+  const reversal = await db.$transaction(async (tx) => {
     const count = await tx.journalEntry.count({ where: { businessId: original.businessId } })
-    return `JE-${String(count + 1).padStart(6, '0')}`
-  })
+    const number = `JE-${String(count + 1).padStart(6, '0')}`
 
-  const reversal = await db.journalEntry.create({
-    data: {
-      businessId: original.businessId,
-      number,
-      date: new Date(),
-      reference: `Reversal of ${original.number}`,
-      description: reason,
-      sourceType: 'REVERSAL',
-      sourceId: original.id,
-      isPosted: true,
-      postedAt: new Date(),
-      createdById: userId,
-      lines: {
-        create: original.lines.map(l => ({
-          accountId: l.accountId,
-          debit: l.credit, // swap
-          credit: l.debit, // swap
-          description: `Reversal: ${l.description || ''}`,
-          partyId: l.partyId,
-        })),
+    return tx.journalEntry.create({
+      data: {
+        businessId: original.businessId,
+        number,
+        date: new Date(),
+        reference: `Reversal of ${original.number}`,
+        description: reason,
+        sourceType: 'REVERSAL',
+        sourceId: original.id,
+        isPosted: true,
+        postedAt: new Date(),
+        createdById: userId,
+        lines: {
+          create: original.lines.map(l => ({
+            accountId: l.accountId,
+            debit: l.credit, // swap
+            credit: l.debit, // swap
+            description: `Reversal: ${l.description || ''}`,
+            partyId: l.partyId,
+          })),
+        },
       },
-    },
+    })
   })
 
   // Mark original as reversed
