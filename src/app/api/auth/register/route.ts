@@ -2,16 +2,21 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { hashPassword, setSession } from '@/lib/auth'
 import { z } from 'zod'
+import { checkRegisterRateLimit } from '@/lib/rate-limit'
 
 const registerSchema = z.object({
   name: z.string().min(2),
   email: z.string().email(),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
+  password: z.string().min(8, 'Password must be at least 8 characters').regex(/[A-Z]/, 'Must contain at least one uppercase letter').regex(/[0-9]/, 'Must contain at least one number').regex(/[^A-Za-z0-9]/, 'Must contain at least one special character'),
   organization: z.string().min(2),
 })
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0] || req.headers.get('x-real-ip') || 'unknown'
+    if (!checkRegisterRateLimit(ip)) {
+      return NextResponse.json({ error: 'Too many registration attempts. Please try again later.' }, { status: 429, headers: { 'Retry-After': '3600' } })
+    }
     const body = await req.json()
     const { name, email, password, organization } = registerSchema.parse(body)
 

@@ -37,6 +37,26 @@ export async function postJournalEntry(params: PostJournalParams): Promise<strin
     throw new Error(`Journal entry not balanced. Debits: ${totalDebit}, Credits: ${totalCredit}`)
   }
 
+  // Check if date falls in a locked period
+  try {
+    const { isPeriodLocked } = await import('./period-lock')
+    if (await isPeriodLocked(businessId, date)) {
+      throw new Error('Period is locked for this date. Unlock it in Settings to post entries.')
+    }
+  } catch (importErr) {
+    // period-lock module may not be available — continue without check
+  }
+
+  // Validate all account IDs belong to this business
+  const accountIds = [...new Set(lines.map(l => l.accountId))]
+  const validAccounts = await db.account.findMany({
+    where: { id: { in: accountIds }, businessId },
+    select: { id: true },
+  })
+  if (validAccounts.length !== accountIds.length) {
+    throw new Error('One or more account IDs do not belong to this business')
+  }
+
   // Create the journal entry with lines inside a transaction
   // This ensures the count + create are atomic — no race condition
   const entry = await db.$transaction(async (tx) => {
@@ -126,27 +146,25 @@ export async function getAccountBalance(
   startDate?: Date,
   endDate?: Date
 ): Promise<{ debit: Decimal; credit: Decimal; balance: Decimal }> {
-  const where: {
-    accountId: string
-    journalEntry?: { date?: { gte?: Date; lte?: Date }; isPosted: boolean }
-  } = {
+  const where: any = {
     accountId,
     journalEntry: { isPosted: true },
   }
 
   if (startDate || endDate) {
-    where.journalEntry!.date = {}
-    if (startDate) where.journalEntry!.date!.gte = startDate
-    if (endDate) where.journalEntry!.date!.lte = endDate
+    where.journalEntry.date = {}
+    if (startDate) where.journalEntry.date.gte = startDate
+    if (endDate) where.journalEntry.date.lte = endDate
   }
 
-  const lines = await db.journalLine.findMany({
+  // Use aggregate instead of fetching all rows — prevents memory issues on large accounts
+  const result = await db.journalLine.aggregate({
     where,
-    select: { debit: true, credit: true },
+    _sum: { debit: true, credit: true },
   })
 
-  const debit = lines.reduce((s, l) => s.plus(money(l.debit)), money(0))
-  const credit = lines.reduce((s, l) => s.plus(money(l.credit)), money(0))
+  const debit = money(result._sum.debit ?? 0)
+  const credit = money(result._sum.credit ?? 0)
   const balance = debit.minus(credit)
 
   return { debit, credit, balance }

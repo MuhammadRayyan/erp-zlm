@@ -28,7 +28,7 @@ export const invoiceSchema = z.object({
   terms: z.string().trim().max(5000).optional().nullable(),
   post: z.boolean().optional(),
   lines: z.array(documentLineSchema).min(1, 'At least one line item is required').max(500),
-})
+}).refine((data) => new Date(data.dueDate) >= new Date(data.date), { message: 'Due date must be on or after the invoice date', path: ['dueDate'] })
 
 // ============================================================
 // BILL SCHEMA
@@ -42,7 +42,7 @@ export const billSchema = z.object({
   notes: z.string().trim().max(5000).optional().nullable(),
   post: z.boolean().optional(),
   lines: z.array(documentLineSchema).min(1, 'At least one line item is required').max(500),
-})
+}).refine((data) => new Date(data.dueDate) >= new Date(data.date), { message: 'Due date must be on or after the bill date', path: ['dueDate'] })
 
 // ============================================================
 // QUOTATION SCHEMA

@@ -61,7 +61,15 @@ export async function POST(req: NextRequest) {
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
   const user = { id: session.userId, name: session.name, email: session.email }
 
-  const amount = toNumber(money(body.amount))
+const amount = toNumber(money(body.amount))
+
+  // Guard against over-allocation
+  if (body.allocations && body.allocations.length > 0) {
+    const totalAllocated = body.allocations.reduce((s: number, a: { amount: number }) => s + a.amount, 0)
+    if (totalAllocated > amount) {
+      return NextResponse.json({ error: `Allocated amount (${totalAllocated}) exceeds payment amount (${amount})` }, { status: 400 })
+    }
+  }
 
   // Create payment
   const payment = await db.payment.create({

@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
+import { MODULE_LABELS } from '@/lib/nav'
 import { Sidebar } from './sidebar'
 import { Topbar } from './topbar'
 import { Dashboard } from './modules/dashboard'
@@ -23,6 +24,7 @@ import { SettingsModule } from './modules/settings'
 import { AdminPortal } from './modules/admin-portal'
 import { TenantPortal } from './modules/tenant-portal'
 import { AuthScreen } from './auth-screen'
+import { ModuleErrorBoundary } from './error-boundary'
 
 export interface Business {
   id: string
@@ -139,7 +141,9 @@ export function AppShell() {
         <Topbar auth={auth} module={activeModule} onRefresh={refreshAuth} />
         <main className="flex-1 overflow-y-auto">
           <div className="mx-auto max-w-[1400px] p-4 md:p-6">
+            <ModuleErrorBoundary moduleName={MODULE_LABELS[activeModule] || activeModule}>
             {renderModule()}
+            </ModuleErrorBoundary>
           </div>
         </main>
       </div>

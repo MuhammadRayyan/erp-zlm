@@ -16,7 +16,7 @@ function isPublicRoute(pathname: string): boolean {
 
 // Get JWT secret as Uint8Array for jose
 function getJwtSecret(): Uint8Array {
-  const secret = process.env.JWT_SECRET || 'dev-only-secret-not-for-production'
+  const secret = process.env.JWT_SECRET || 'dev-fallback-do-not-use-in-production'
   return new TextEncoder().encode(secret)
 }
 

@@ -30,7 +30,6 @@ COPY . .
 
 # Set environment for build
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV DATABASE_URL="file:/app/db/custom.db"
 
 # Build the application
 RUN bun run build
@@ -42,7 +41,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
-ENV DATABASE_URL="file:/app/data/accounterp.db"
+# DATABASE_URL should be passed at runtime, not baked into image
 
 # Install minimal runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \

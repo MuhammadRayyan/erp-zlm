@@ -7,7 +7,14 @@ const JWT_SECRET = process.env.JWT_SECRET
 if (!JWT_SECRET && process.env.NODE_ENV === 'production') {
   throw new Error('FATAL: JWT_SECRET environment variable must be set in production. Set it in your .env file or environment.')
 }
-const SECRET = JWT_SECRET || 'dev-only-secret-not-for-production'
+if (!JWT_SECRET) {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('FATAL: JWT_SECRET environment variable must be set in production.')
+  }
+  // In development, use a warning fallback
+  console.warn('WARNING: JWT_SECRET not set. Using insecure dev fallback. Set JWT_SECRET in .env for production.')
+}
+const SECRET = JWT_SECRET || 'dev-fallback-do-not-use-in-production'
 const SESSION_COOKIE = 'accounterp_session'
 const TENANT_COOKIE = 'accounterp_tenant'
 const BUSINESS_COOKIE = 'accounterp_business'
@@ -68,7 +75,7 @@ export async function setSession(payload: SessionPayload) {
   cookieStore.set(SESSION_COOKIE, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    sameSite: 'strict',
     path: '/',
     maxAge: 60 * 60 * 24 * 7, // 7 days
   })
@@ -222,7 +229,7 @@ export async function ensureTenantContext(): Promise<string> {
     }
     const first = await db.tenant.findFirst({ orderBy: { createdAt: 'asc' } })
     if (first) {
-      cookieStore.set(TENANT_COOKIE, first.id, { path: '/', maxAge: 60 * 60 * 24 * 365, httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax' })
+      cookieStore.set(TENANT_COOKIE, first.id, { path: '/', maxAge: 60 * 60 * 24 * 365, httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict' })
       return first.id
     }
     throw new Error('No tenants found')
@@ -273,6 +280,6 @@ export async function ensureBusinessId(): Promise<string> {
   }
 
   const cookieStore = await cookies()
-  cookieStore.set(BUSINESS_COOKIE, business.id, { path: '/', maxAge: 60 * 60 * 24 * 365, httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax' })
+  cookieStore.set(BUSINESS_COOKIE, business.id, { path: '/', maxAge: 60 * 60 * 24 * 365, httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict' })
   return business.id
 }
