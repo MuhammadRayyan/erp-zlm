@@ -14,8 +14,9 @@ export async function GET(req: NextRequest) {
   const id = searchParams.get('id')
 
   if (id) {
-    const q = await db.quotation.findUnique({
-      where: { id },
+    // SECURITY: Verify quotation belongs to current business (tenant isolation)
+    const q = await db.quotation.findFirst({
+      where: { id, businessId },
       include: { party: true, lines: { include: { taxRate: true }, orderBy: { position: 'asc' } } },
     })
     if (!q) return NextResponse.json({ error: 'Not found' }, { status: 404 })

@@ -13,8 +13,9 @@ export async function GET(req: NextRequest) {
   const id = searchParams.get('id')
 
   if (id) {
-    const dn = await db.deliveryNote.findUnique({
-      where: { id },
+    // SECURITY: Verify delivery note belongs to current business (tenant isolation)
+    const dn = await db.deliveryNote.findFirst({
+      where: { id, businessId },
       include: { party: true, lines: { orderBy: { position: 'asc' } } },
     })
     if (!dn) return NextResponse.json({ error: 'Not found' }, { status: 404 })

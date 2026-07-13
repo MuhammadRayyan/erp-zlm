@@ -13,11 +13,11 @@ export async function POST(req: NextRequest) {
   const body = await req.json()
   const { action, id } = body
 
-  const invoice = await db.salesInvoice.findUnique({
-    where: { id },
+  const invoice = await db.salesInvoice.findFirst({
+    where: { id, businessId },
     include: { party: true, lines: true },
   })
-  if (!invoice) return NextResponse.json({ error: 'Invoice not found' }, { status: 404 })
+  if (!invoice) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })

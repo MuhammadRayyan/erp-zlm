@@ -90,12 +90,15 @@ export async function PUT(req: NextRequest) {
 
 // DELETE /api/accounts?id=xxx
 export async function DELETE(req: NextRequest) {
+  const businessId = await ensureBusinessId()
   const { searchParams } = new URL(req.url)
   const id = searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 })
 
-  const account = await db.account.findUnique({ where: { id } })
-  if (account?.isSystem) {
+  // SECURITY: Verify account belongs to current business (tenant isolation)
+  const account = await db.account.findFirst({ where: { id, businessId } })
+  if (!account) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (account.isSystem) {
     return NextResponse.json({ error: 'System accounts cannot be deleted' }, { status: 400 })
   }
 

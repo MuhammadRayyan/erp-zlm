@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { ensureBusinessId, getCurrentTenantId, getSession } from '@/lib/auth'
+import { ensureBusinessId, getCurrentTenantId, getSession, AuthError } from '@/lib/auth'
 import { postJournalEntry } from '@/lib/journal-service'
 import { toNumber, money, isBalanced } from '@/lib/decimal'
+import { journalEntrySchema, validateBody } from '@/lib/validation-schemas'
 
 // GET /api/journal — list journal entries
 export async function GET(req: NextRequest) {
@@ -51,6 +52,12 @@ export async function POST(req: NextRequest) {
   
 
   const body = await req.json()
+
+  // Validate input with Zod
+  const validation = validateBody(journalEntrySchema, body)
+  if (!validation.success) {
+    return NextResponse.json({ error: 'Validation failed', fieldErrors: validation.errors }, { status: 400 })
+  }
 
   // Validate balance
   if (!isBalanced(body.lines)) {

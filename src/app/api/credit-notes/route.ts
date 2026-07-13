@@ -15,8 +15,9 @@ export async function GET(req: NextRequest) {
   const id = searchParams.get('id')
 
   if (id) {
-    const cn = await db.creditNote.findUnique({
-      where: { id },
+    // SECURITY: Verify credit note belongs to current business (tenant isolation)
+    const cn = await db.creditNote.findFirst({
+      where: { id, businessId },
       include: { party: true, lines: { include: { taxRate: true }, orderBy: { position: 'asc' } } },
     })
     if (!cn) return NextResponse.json({ error: 'Not found' }, { status: 404 })
