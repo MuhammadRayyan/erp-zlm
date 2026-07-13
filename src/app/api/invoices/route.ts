@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { ensureBusinessId, getCurrentTenantId, getSession , AuthError } from '@/lib/auth'
+import { ensureBusinessId, getCurrentTenantId, getSession, hasPermission, AuthError } from '@/lib/auth'
 import { postJournalEntry } from '@/lib/journal-service'
 import { calculateLine, calculateDocumentTotals, generateEInvoiceUuid } from '@/lib/vat-service'
 import { invoiceSchema, validateBody } from '@/lib/validation-schemas'
@@ -295,6 +295,10 @@ export async function DELETE(req: NextRequest) {
   try { businessId = await ensureBusinessId() } catch (e) {
     if (e instanceof AuthError || (e as Error).message === 'Not authenticated') return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })
+  }
+  // Permission check — VIEWER cannot delete
+  if (!(await hasPermission('tenant.accounting'))) {
+    return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
   }
   const { searchParams } = new URL(req.url)
   const id = searchParams.get('id')
