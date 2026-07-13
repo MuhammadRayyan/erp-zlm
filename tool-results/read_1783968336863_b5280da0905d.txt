@@ -1,0 +1,888 @@
+     1→     1→// AccountERP — Complete Prisma Schema (Multi-Tenant SaaS Edition)
+     2→     2→// UAE-compliant double-entry accounting ERP
+     3→     3→// Database: SQLite (dev) / PostgreSQL (prod)
+     4→     4→// To switch to PostgreSQL: change provider to "postgresql" and update DATABASE_URL
+     5→     5→// Tenant isolation: row-level via tenantId on all business-scoped tables
+     6→     6→
+     7→     7→generator client {
+     8→     8→  provider = "prisma-client-js"
+     9→     9→}
+    10→    10→
+    11→    11→datasource db {
+    12→    12→  // Default: SQLite for local development
+    13→    13→  // For production: change to provider = "postgresql"
+    14→    14→  // Then run: bun run db:push
+    15→    15→  provider = "sqlite"
+    16→    16→  url      = env("DATABASE_URL")
+    17→    17→}
+    18→    18→
+    19→    19→// ============================================================
+    20→    20→// PLATFORM LEVEL (shared, no tenant scoping)
+    21→    21→// ============================================================
+    22→    22→
+    23→    23→model User {
+    24→    24→  id            String   @id @default(cuid())
+    25→    25→  email         String   @unique
+    26→    26→  name          String
+    27→    27→  passwordHash  String?
+    28→    28→  role          String   @default("USER") // PLATFORM_ADMIN, USER
+    29→    29→  isActive      Boolean  @default(true)
+    30→    30→  lastLoginAt   DateTime?
+    31→    31→  createdAt     DateTime @default(now())
+    32→    32→  updatedAt     DateTime @updatedAt
+    33→    33→
+    34→    34→  tenantMemberships UserTenant[]
+    35→    35→  journalEntries    JournalEntry[]  @relation("JournalEntryCreatedBy")
+    36→    36→  invoices          SalesInvoice[]  @relation("InvoiceCreatedBy")
+    37→    37→  bills             PurchaseBill[]  @relation("BillCreatedBy")
+    38→    38→  payments          Payment[]       @relation("PaymentCreatedBy")
+    39→    39→  auditLogs         AuditLog[]
+    40→    40→  activities        ActivityLog[]
+    41→    41→}
+    42→    42→
+    43→    43→// A Tenant = a customer organization that bought a license/subscription
+    44→    44→model Tenant {
+    45→    45→  id            String   @id @default(cuid())
+    46→    46→  name          String   // organization name
+    47→    47→  slug          String   @unique // URL-friendly identifier
+    48→    48→  email         String   // billing contact
+    49→    49→  phone         String?
+    50→    50→  status        String   @default("ACTIVE") // ACTIVE, SUSPENDED, TRIAL, CANCELLED
+    51→    51→  trialEndsAt   DateTime?
+    52→    52→  createdAt     DateTime @default(now())
+    53→    53→  updatedAt     DateTime @updatedAt
+    54→    54→
+    55→    55→  subscription  Subscription?
+    56→    56→  members       UserTenant[]
+    57→    57→  businesses    Business[]
+    58→    58→  auditLogs     AuditLog[]
+    59→    59→}
+    60→    60→
+    61→    61→// A user's membership in a tenant, with a role
+    62→    62→model UserTenant {
+    63→    63→  id         String   @id @default(cuid())
+    64→    64→  userId     String
+    65→    65→  tenantId   String
+    66→    66→  role       String   @default("ACCOUNTANT") // TENANT_ADMIN, ACCOUNTANT, VIEWER
+    67→    67→  isActive   Boolean  @default(true)
+    68→    68→  invitedAt  DateTime @default(now())
+    69→    69→  joinedAt   DateTime?
+    70→    70→
+    71→    71→  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+    72→    72→  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+    73→    73→
+    74→    74→  @@unique([userId, tenantId])
+    75→    75→  @@index([tenantId])
+    76→    76→}
+    77→    77→
+    78→    78→// Subscription plans define limits and features
+    79→    79→model Plan {
+    80→    80→  id              String   @id @default(cuid())
+    81→    81→  name            String   @unique // Free, Starter, Professional, Enterprise
+    82→    82→  description     String?
+    83→    83→  maxBusinesses   Int      @default(1)
+    84→    84→  maxUsers        Int      @default(2)
+    85→    85→  maxInvoicesPerMonth Int  @default(100) // 0 = unlimited
+    86→    86→  priceMonthly    Decimal  @default(0)
+    87→    87→  priceYearly     Decimal  @default(0)
+    88→    88→  features        String   @default("{}") // JSON: { eInvoicing: true, api: false, ... }
+    89→    89→  isActive        Boolean  @default(true)
+    90→    90→  isPublic        Boolean  @default(true)
+    91→    91→  createdAt       DateTime @default(now())
+    92→    92→
+    93→    93→  subscriptions   Subscription[]
+    94→    94→}
+    95→    95→
+    96→    96→// A tenant's subscription to a plan
+    97→    97→model Subscription {
+    98→    98→  id              String   @id @default(cuid())
+    99→    99→  tenantId        String   @unique
+   100→   100→  planId          String
+   101→   101→  status          String   @default("TRIAL") // TRIAL, ACTIVE, PAST_DUE, CANCELLED, PAUSED
+   102→   102→  billingCycle    String   @default("MONTHLY") // MONTHLY, YEARLY
+   103→   103→  currentPeriodStart DateTime?
+   104→   104→  currentPeriodEnd   DateTime?
+   105→   105→  trialEndsAt     DateTime?
+   106→   106→  createdAt       DateTime @default(now())
+   107→   107→  updatedAt       DateTime @updatedAt
+   108→   108→
+   109→   109→  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+   110→   110→  plan            Plan     @relation(fields: [planId], references: [id])
+   111→   111→
+   112→   112→  @@index([planId])
+   113→   113→}
+   114→   114→
+   115→   115→// Licenses for self-hosted / offline deployments
+   116→   116→model License {
+   117→   117→  id            String   @id @default(cuid())
+   118→   118→  key           String   @unique
+   119→   119→  tenantId      String?  // null = unassigned
+   120→   120→  planName      String
+   121→   121→  type          String   @default("ANNUAL") // LIFETIME, ANNUAL, MONTHLY
+   122→   122→  maxBusinesses Int      @default(1)
+   123→   123→  maxUsers      Int      @default(2)
+   124→   124→  issuedTo      String?  // customer email
+   125→   125→  issuedAt      DateTime @default(now())
+   126→   126→  expiresAt     DateTime?
+   127→   127→  status        String   @default("ACTIVE") // ACTIVE, EXPIRED, REVOKED, SUSPENDED
+   128→   128→  notes         String?
+   129→   129→  createdAt     DateTime @default(now())
+   130→   130→
+   131→   131→  @@index([tenantId])
+   132→   132→  @@index([status])
+   133→   133→}
+   134→   134→
+   135→   135→// ============================================================
+   136→   136→// BUSINESS LEVEL (tenant-scoped via tenantId)
+   137→   137→// ============================================================
+   138→   138→
+   139→   139→model Business {
+   140→   140→  id              String   @id @default(cuid())
+   141→   141→  tenantId        String
+   142→   142→  name            String
+   143→   143→  legalName       String?
+   144→   144→  trn             String?  // UAE Tax Registration Number (15 digits)
+   145→   145→  email           String?
+   146→   146→  phone           String?
+   147→   147→  website         String?
+   148→   148→  addressLine1    String?
+   149→   149→  addressLine2    String?
+   150→   150→  city            String?
+   151→   151→  state           String?  // Emirate
+   152→   152→  postalCode      String?
+   153→   153→  country         String   @default("AE")
+   154→   154→  baseCurrency    String   @default("AED")
+   155→   155→  fiscalYearStart String   @default("01-01")
+   156→   156→  logoUrl         String?
+   157→   157→  vatRegistered   Boolean  @default(true)
+   158→   158→  vatRate         Decimal  @default(5.00)
+   159→   159→  invoicePrefix   String   @default("INV-")
+   160→   160→  billPrefix      String   @default("BILL-")
+   161→   161→  quotationPrefix String   @default("QT-")
+   162→   162→  creditNotePrefix String  @default("CN-")
+   163→   163→  receiptPrefix   String   @default("RCT-")
+   164→   164→  paymentPrefix   String   @default("PMT-")
+   165→   165→  deliveryNotePrefix String @default("DN-")
+   166→   166→  nextInvoiceNumber     Int @default(1)
+   167→   167→  nextBillNumber        Int @default(1)
+   168→   168→  nextQuotationNumber   Int @default(1)
+   169→   169→  nextCreditNoteNumber  Int @default(1)
+   170→   170→  nextReceiptNumber     Int @default(1)
+   171→   171→  nextPaymentNumber     Int @default(1)
+   172→   172→  nextDeliveryNoteNumber Int @default(1)
+   173→   173→  createdAt       DateTime @default(now())
+   174→   174→  updatedAt       DateTime @updatedAt
+   175→   175→
+   176→   176→  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+   177→   177→  accounts        Account[]
+   178→   178→  parties         Party[]
+   179→   179→  journalEntries  JournalEntry[]
+   180→   180→  salesInvoices   SalesInvoice[]
+   181→   181→  purchaseBills   PurchaseBill[]
+   182→   182→  quotations      Quotation[]
+   183→   183→  creditNotes     CreditNote[]
+   184→   184→  deliveryNotes   DeliveryNote[]
+   185→   185→  payments        Payment[]
+   186→   186→  items           Item[]
+   187→   187→  bankAccounts    BankAccount[]
+   188→   188→  taxRates        TaxRate[]
+   189→   189→  currencies      Currency[]
+   190→   190→  customFields    CustomFieldDefinition[]
+   191→   191→  pdfTemplates    PdfTemplate[]
+   192→   192→  auditLogs       AuditLog[]
+   193→   193→  warehouses      Warehouse[]
+   194→   194→  stockMovements  StockMovement[]
+   195→   195→  activities      ActivityLog[]
+   196→   196→
+   197→   197→  @@index([tenantId])
+   198→   198→}
+   199→   199→
+   200→   200→// ============================================================
+   201→   201→// CHART OF ACCOUNTS
+   202→   202→// ============================================================
+   203→   203→
+   204→   204→model Account {
+   205→   205→  id            String   @id @default(cuid())
+   206→   206→  businessId    String
+   207→   207→  code          String
+   208→   208→  name          String
+   209→   209→  nameAr        String?
+   210→   210→  type          String   // ASSET, LIABILITY, EQUITY, INCOME, EXPENSE
+   211→   211→  subtype       String?
+   212→   212→  parentId      String?
+   213→   213→  description   String?
+   214→   214→  isControl     Boolean  @default(false)
+   215→   215→  isSystem      Boolean  @default(false)
+   216→   216→  isActive      Boolean  @default(true)
+   217→   217→  openingBalance Decimal @default(0)
+   218→   218→  createdAt     DateTime @default(now())
+   219→   219→  updatedAt     DateTime @updatedAt
+   220→   220→
+   221→   221→  business      Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+   222→   222→  parent        Account?  @relation("AccountHierarchy", fields: [parentId], references: [id])
+   223→   223→  children      Account[] @relation("AccountHierarchy")
+   224→   224→  journalLines  JournalLine[]
+   225→   225→
+   226→   226→  @@unique([businessId, code])
+   227→   227→  @@index([businessId, type])
+   228→   228→  @@index([parentId])
+   229→   229→}
+   230→   230→
+   231→   231→// ============================================================
+   232→   232→// JOURNAL ENTRIES (Double-Entry)
+   233→   233→// ============================================================
+   234→   234→
+   235→   235→model JournalEntry {
+   236→   236→  id          String   @id @default(cuid())
+   237→   237→  businessId  String
+   238→   238→  number      String
+   239→   239→  date        DateTime
+   240→   240→  reference   String?
+   241→   241→  description String?
+   242→   242→  sourceType  String?  // SALES_INVOICE, PURCHASE_BILL, PAYMENT, MANUAL, etc.
+   243→   243→  sourceId    String?
+   244→   244→  isPosted    Boolean  @default(false)
+   245→   245→  postedAt    DateTime?
+   246→   246→  isReversed  Boolean  @default(false)
+   247→   247→  reversedById String?
+   248→   248→  createdById  String
+   249→   249→  createdAt   DateTime @default(now())
+   250→   250→  updatedAt   DateTime @updatedAt
+   251→   251→
+   252→   252→  business    Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+   253→   253→  createdBy   User         @relation("JournalEntryCreatedBy", fields: [createdById], references: [id])
+   254→   254→  lines       JournalLine[]
+   255→   255→
+   256→   256→  @@unique([businessId, number])
+   257→   257→  @@index([businessId, date])
+   258→   258→  @@index([sourceType, sourceId])
+   259→   259→}
+   260→   260→
+   261→   261→model JournalLine {
+   262→   262→  id            String   @id @default(cuid())
+   263→   263→  journalEntryId String
+   264→   264→  accountId     String
+   265→   265→  debit         Decimal  @default(0)
+   266→   266→  credit        Decimal  @default(0)
+   267→   267→  description   String?
+   268→   268→  partyId       String?
+   269→   269→  party         Party?   @relation(fields: [partyId], references: [id])
+   270→   270→  createdAt     DateTime @default(now())
+   271→   271→
+   272→   272→  journalEntry  JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+   273→   273→  account       Account      @relation(fields: [accountId], references: [id])
+   274→   274→
+   275→   275→  @@index([accountId])
+   276→   276→  @@index([journalEntryId])
+   277→   277→}
+   278→   278→
+   279→   279→// ============================================================
+   280→   280→// PARTIES (Customers & Suppliers)
+   281→   281→// ============================================================
+   282→   282→
+   283→   283→model Party {
+   284→   284→  id            String   @id @default(cuid())
+   285→   285→  businessId    String
+   286→   286→  code          String?
+   287→   287→  name          String
+   288→   288→  nameAr        String?
+   289→   289→  type          String   @default("CUSTOMER")
+   290→   290→  trn           String?
+   291→   291→  email         String?
+   292→   292→  phone         String?
+   293→   293→  website       String?
+   294→   294→  contactPerson String?
+   295→   295→  billingAddress1   String?
+   296→   296→  billingAddress2   String?
+   297→   297→  billingCity       String?
+   298→   298→  billingState      String?
+   299→   299→  billingPostalCode String?
+   300→   300→  billingCountry    String   @default("AE")
+   301→   301→  shippingAddress1  String?
+   302→   302→  shippingAddress2  String?
+   303→   303→  shippingCity      String?
+   304→   304→  shippingState     String?
+   305→   305→  shippingPostalCode String?
+   306→   306→  shippingCountry   String   @default("AE")
+   307→   307→  paymentTerms  Int      @default(30)
+   308→   308→  creditLimit   Decimal  @default(0)
+   309→   309→  openingBalance Decimal @default(0)
+   310→   310→  openingBalanceType String @default("DEBIT")
+   311→   311→  notes         String?
+   312→   312→  isActive      Boolean  @default(true)
+   313→   313→  customFields  String?
+   314→   314→  createdAt     DateTime @default(now())
+   315→   315→  updatedAt     DateTime @updatedAt
+   316→   316→
+   317→   317→  business      Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+   318→   318→  invoices      SalesInvoice[]
+   319→   319→  bills         PurchaseBill[]
+   320→   320→  payments      Payment[]
+   321→   321→  journalLines  JournalLine[]
+   322→   322→  quotations    Quotation[]
+   323→   323→  creditNotes   CreditNote[]
+   324→   324→  deliveryNotes DeliveryNote[]
+   325→   325→
+   326→   326→  @@unique([businessId, code])
+   327→   327→  @@index([businessId, type])
+   328→   328→}
+   329→   329→
+   330→   330→// ============================================================
+   331→   331→// TAX RATES
+   332→   332→// ============================================================
+   333→   333→
+   334→   334→model TaxRate {
+   335→   335→  id          String   @id @default(cuid())
+   336→   336→  businessId  String
+   337→   337→  name        String
+   338→   338→  nameAr      String?
+   339→   339→  rate        Decimal
+   340→   340→  category    String
+   341→   341→  isDefault   Boolean  @default(false)
+   342→   342→  isActive    Boolean  @default(true)
+   343→   343→  createdAt   DateTime @default(now())
+   344→   344→
+   345→   345→  business      Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+   346→   346→  invoiceLines SalesInvoiceLine[]
+   347→   347→  billLines    PurchaseBillLine[]
+   348→   348→  quotationLines QuotationLine[]
+   349→   349→  creditNoteLines CreditNoteLine[]
+   350→   350→
+   351→   351→  @@unique([businessId, name])
+   352→   352→}
+   353→   353→
+   354→   354→// ============================================================
+   355→   355→// CURRENCIES
+   356→   356→// ============================================================
+   357→   357→
+   358→   358→model Currency {
+   359→   359→  id          String   @id @default(cuid())
+   360→   360→  businessId  String
+   361→   361→  code        String
+   362→   362→  name        String
+   363→   363→  symbol      String
+   364→   364→  isBase      Boolean  @default(false)
+   365→   365→  exchangeRate Decimal @default(1)
+   366→   366→  createdAt   DateTime @default(now())
+   367→   367→  updatedAt   DateTime @updatedAt
+   368→   368→
+   369→   369→  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+   370→   370→
+   371→   371→  @@unique([businessId, code])
+   372→   372→}
+   373→   373→
+   374→   374→// ============================================================
+   375→   375→// SALES INVOICES
+   376→   376→// ============================================================
+   377→   377→
+   378→   378→model SalesInvoice {
+   379→   379→  id            String   @id @default(cuid())
+   380→   380→  businessId    String
+   381→   381→  number        String
+   382→   382→  date          DateTime
+   383→   383→  dueDate       DateTime
+   384→   384→  partyId       String
+   385→   385→  reference     String?
+   386→   386→  currency      String   @default("AED")
+   387→   387→  exchangeRate  Decimal  @default(1)
+   388→   388→  subtotal      Decimal  @default(0)
+   389→   389→  totalDiscount Decimal  @default(0)
+   390→   390→  totalTax      Decimal  @default(0)
+   391→   391→  total         Decimal  @default(0)
+   392→   392→  amountPaid    Decimal  @default(0)
+   393→   393→  status        String   @default("DRAFT")
+   394→   394→  notes         String?
+   395→   395→  terms         String?
+   396→   396→  customFields  String?
+   397→   397→  einvoiceUuid  String?
+   398→   398→  einvoiceXml   String?
+   399→   399→  postedAt      DateTime?
+   400→   400→  createdById   String
+   401→   401→  createdAt     DateTime @default(now())
+   402→   402→  updatedAt     DateTime @updatedAt
+   403→   403→
+   404→   404→  business      Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+   405→   405→  party         Party     @relation(fields: [partyId], references: [id])
+   406→   406→  createdBy     User      @relation("InvoiceCreatedBy", fields: [createdById], references: [id])
+   407→   407→  lines         SalesInvoiceLine[]
+   408→   408→  payments      PaymentAllocation[]
+   409→   409→
+   410→   410→  @@unique([businessId, number])
+   411→   411→  @@index([businessId, date])
+   412→   412→  @@index([partyId])
+   413→   413→  @@index([status])
+   414→   414→}
+   415→   415→
+   416→   416→model SalesInvoiceLine {
+   417→   417→  id            String   @id @default(cuid())
+   418→   418→  invoiceId     String
+   419→   419→  itemId        String?
+   420→   420→  description   String
+   421→   421→  quantity      Decimal
+   422→   422→  unitPrice     Decimal
+   423→   423→  discount      Decimal  @default(0)
+   424→   424→  position      Int      @default(0)
+   425→   425→  taxRateId     String?
+   426→   426→  taxRate       TaxRate?       @relation(fields: [taxRateId], references: [id])
+   427→   427→  lineTotal     Decimal
+   428→   428→  lineTax       Decimal  @default(0)
+   429→   429→
+   430→   430→  invoice       SalesInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+   431→   431→
+   432→   432→  @@index([invoiceId])
+   433→   433→}
+   434→   434→
+   435→   435→// ============================================================
+   436→   436→// PURCHASE BILLS
+   437→   437→// ============================================================
+   438→   438→
+   439→   439→model PurchaseBill {
+   440→   440→  id            String   @id @default(cuid())
+   441→   441→  businessId    String
+   442→   442→  number        String
+   443→   443→  date          DateTime
+   444→   444→  dueDate       DateTime
+   445→   445→  partyId       String
+   446→   446→  supplierInvoiceNumber String?
+   447→   447→  reference     String?
+   448→   448→  currency      String   @default("AED")
+   449→   449→  exchangeRate  Decimal  @default(1)
+   450→   450→  subtotal      Decimal  @default(0)
+   451→   451→  totalDiscount Decimal  @default(0)
+   452→   452→  totalTax      Decimal  @default(0)
+   453→   453→  total         Decimal  @default(0)
+   454→   454→  amountPaid    Decimal  @default(0)
+   455→   455→  status        String   @default("DRAFT")
+   456→   456→  notes         String?
+   457→   457→  customFields  String?
+   458→   458→  postedAt      DateTime?
+   459→   459→  createdById   String
+   460→   460→  createdAt     DateTime @default(now())
+   461→   461→  updatedAt     DateTime @updatedAt
+   462→   462→
+   463→   463→  business      Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+   464→   464→  party         Party    @relation(fields: [partyId], references: [id])
+   465→   465→  createdBy     User     @relation("BillCreatedBy", fields: [createdById], references: [id])
+   466→   466→  lines         PurchaseBillLine[]
+   467→   467→  payments      PaymentAllocation[]
+   468→   468→
+   469→   469→  @@unique([businessId, number])
+   470→   470→  @@index([businessId, date])
+   471→   471→  @@index([partyId])
+   472→   472→  @@index([status])
+   473→   473→}
+   474→   474→
+   475→   475→model PurchaseBillLine {
+   476→   476→  id            String   @id @default(cuid())
+   477→   477→  billId        String
+   478→   478→  itemId        String?
+   479→   479→  description   String
+   480→   480→  quantity      Decimal
+   481→   481→  unitPrice     Decimal
+   482→   482→  discount      Decimal  @default(0)
+   483→   483→  position      Int      @default(0)
+   484→   484→  taxRateId     String?
+   485→   485→  taxRate       TaxRate?       @relation(fields: [taxRateId], references: [id])
+   486→   486→  lineTotal     Decimal
+   487→   487→  lineTax       Decimal  @default(0)
+   488→   488→
+   489→   489→  bill          PurchaseBill @relation(fields: [billId], references: [id], onDelete: Cascade)
+   490→   490→
+   491→   491→  @@index([billId])
+   492→   492→}
+   493→   493→
+   494→   494→// ============================================================
+   495→   495→// QUOTATIONS
+   496→   496→// ============================================================
+   497→   497→
+   498→   498→model Quotation {
+   499→   499→  id            String   @id @default(cuid())
+   500→   500→  businessId    String
+   501→   501→  number        String
+   502→   502→  date          DateTime
+   503→   503→  validUntil    DateTime?
+   504→   504→  partyId       String
+   505→   505→  reference     String?
+   506→   506→  currency      String   @default("AED")
+   507→   507→  subtotal      Decimal  @default(0)
+   508→   508→  totalDiscount Decimal  @default(0)
+   509→   509→  totalTax      Decimal  @default(0)
+   510→   510→  total         Decimal  @default(0)
+   511→   511→  status        String   @default("DRAFT")
+   512→   512→  notes         String?
+   513→   513→  terms         String?
+   514→   514→  customFields  String?
+   515→   515→  convertedInvoiceId String?
+   516→   516→  createdAt     DateTime @default(now())
+   517→   517→  updatedAt     DateTime @updatedAt
+   518→   518→
+   519→   519→  business      Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+   520→   520→  party         Party    @relation(fields: [partyId], references: [id])
+   521→   521→  lines         QuotationLine[]
+   522→   522→
+   523→   523→  @@unique([businessId, number])
+   524→   524→  @@index([partyId])
+   525→   525→}
+   526→   526→
+   527→   527→model QuotationLine {
+   528→   528→  id            String   @id @default(cuid())
+   529→   529→  quotationId   String
+   530→   530→  itemId        String?
+   531→   531→  description   String
+   532→   532→  quantity      Decimal
+   533→   533→  unitPrice     Decimal
+   534→   534→  discount      Decimal  @default(0)
+   535→   535→  position      Int      @default(0)
+   536→   536→  taxRateId     String?
+   537→   537→  taxRate       TaxRate?       @relation(fields: [taxRateId], references: [id])
+   538→   538→  lineTotal     Decimal
+   539→   539→  lineTax       Decimal  @default(0)
+   540→   540→
+   541→   541→  quotation     Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+   542→   542→}
+   543→   543→
+   544→   544→// ============================================================
+   545→   545→// CREDIT NOTES
+   546→   546→// ============================================================
+   547→   547→
+   548→   548→model CreditNote {
+   549→   549→  id            String   @id @default(cuid())
+   550→   550→  businessId    String
+   551→   551→  number        String
+   552→   552→  date          DateTime
+   553→   553→  partyId       String
+   554→   554→  originalInvoiceId String?
+   555→   555→  reference     String?
+   556→   556→  currency      String   @default("AED")
+   557→   557→  subtotal      Decimal  @default(0)
+   558→   558→  totalTax      Decimal  @default(0)
+   559→   559→  total         Decimal  @default(0)
+   560→   560→  status        String   @default("DRAFT")
+   561→   561→  reason        String?
+   562→   562→  notes         String?
+   563→   563→  customFields  String?
+   564→   564→  postedAt      DateTime?
+   565→   565→  createdAt     DateTime @default(now())
+   566→   566→  updatedAt     DateTime @updatedAt
+   567→   567→
+   568→   568→  business      Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+   569→   569→  party         Party    @relation(fields: [partyId], references: [id])
+   570→   570→  lines         CreditNoteLine[]
+   571→   571→
+   572→   572→  @@unique([businessId, number])
+   573→   573→}
+   574→   574→
+   575→   575→model CreditNoteLine {
+   576→   576→  id            String   @id @default(cuid())
+   577→   577→  creditNoteId  String
+   578→   578→  description   String
+   579→   579→  quantity      Decimal
+   580→   580→  unitPrice     Decimal
+   581→   581→  position      Int      @default(0)
+   582→   582→  taxRateId     String?
+   583→   583→  taxRate       TaxRate?       @relation(fields: [taxRateId], references: [id])
+   584→   584→  lineTotal     Decimal
+   585→   585→  lineTax       Decimal  @default(0)
+   586→   586→
+   587→   587→  creditNote    CreditNote @relation(fields: [creditNoteId], references: [id], onDelete: Cascade)
+   588→   588→}
+   589→   589→
+   590→   590→// ============================================================
+   591→   591→// DELIVERY NOTES
+   592→   592→// ============================================================
+   593→   593→
+   594→   594→model DeliveryNote {
+   595→   595→  id            String   @id @default(cuid())
+   596→   596→  businessId    String
+   597→   597→  number        String
+   598→   598→  date          DateTime
+   599→   599→  partyId       String
+   600→   600→  invoiceId     String?
+   601→   601→  reference     String?
+   602→   602→  status        String   @default("DRAFT")
+   603→   603→  notes         String?
+   604→   604→  customFields  String?
+   605→   605→  createdAt     DateTime @default(now())
+   606→   606→  updatedAt     DateTime @updatedAt
+   607→   607→
+   608→   608→  business      Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+   609→   609→  party         Party             @relation(fields: [partyId], references: [id])
+   610→   610→  lines         DeliveryNoteLine[]
+   611→   611→
+   612→   612→  @@unique([businessId, number])
+   613→   613→}
+   614→   614→
+   615→   615→model DeliveryNoteLine {
+   616→   616→  id            String   @id @default(cuid())
+   617→   617→  deliveryNoteId String
+   618→   618→  itemId        String?
+   619→   619→  description   String
+   620→   620→  quantity      Decimal
+   621→   621→  position      Int      @default(0)
+   622→   622→
+   623→   623→  deliveryNote  DeliveryNote @relation(fields: [deliveryNoteId], references: [id], onDelete: Cascade)
+   624→   624→}
+   625→   625→
+   626→   626→// ============================================================
+   627→   627→// PAYMENTS
+   628→   628→// ============================================================
+   629→   629→
+   630→   630→model Payment {
+   631→   631→  id            String   @id @default(cuid())
+   632→   632→  businessId    String
+   633→   633→  number        String
+   634→   634→  date          DateTime
+   635→   635→  type          String   // RECEIPT, PAYMENT
+   636→   636→  partyId       String
+   637→   637→  amount        Decimal
+   638→   638→  currency      String   @default("AED")
+   639→   639→  exchangeRate  Decimal  @default(1)
+   640→   640→  method        String   @default("CASH")
+   641→   641→  reference     String?
+   642→   642→  bankAccountId String?
+   643→   643→  description   String?
+   644→   644→  status        String   @default("POSTED")
+   645→   645→  customFields  String?
+   646→   646→  createdById   String
+   647→   647→  createdAt     DateTime @default(now())
+   648→   648→  updatedAt     DateTime @updatedAt
+   649→   649→
+   650→   650→  business      Business             @relation(fields: [businessId], references: [id], onDelete: Cascade)
+   651→   651→  party         Party                @relation(fields: [partyId], references: [id])
+   652→   652→  createdBy     User                 @relation("PaymentCreatedBy", fields: [createdById], references: [id])
+   653→   653→  allocations   PaymentAllocation[]
+   654→   654→
+   655→   655→  @@unique([businessId, number])
+   656→   656→  @@index([partyId])
+   657→   657→  @@index([type])
+   658→   658→}
+   659→   659→
+   660→   660→model PaymentAllocation {
+   661→   661→  id            String   @id @default(cuid())
+   662→   662→  paymentId     String
+   663→   663→  invoiceId     String?
+   664→   664→  billId        String?
+   665→   665→  amount        Decimal
+   666→   666→
+   667→   667→  payment       Payment       @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+   668→   668→  invoice       SalesInvoice? @relation(fields: [invoiceId], references: [id])
+   669→   669→  bill          PurchaseBill? @relation(fields: [billId], references: [id])
+   670→   670→}
+   671→   671→
+   672→   672→// ============================================================
+   673→   673→// INVENTORY
+   674→   674→// ============================================================
+   675→   675→
+   676→   676→model Item {
+   677→   677→  id            String   @id @default(cuid())
+   678→   678→  businessId    String
+   679→   679→  sku           String
+   680→   680→  name          String
+   681→   681→  nameAr        String?
+   682→   682→  description   String?
+   683→   683→  unit          String   @default("PCS")
+   684→   684→  category      String?
+   685→   685→  salePrice     Decimal  @default(0)
+   686→   686→  purchasePrice Decimal  @default(0)
+   687→   687→  costMethod    String   @default("WEIGHTED_AVG")
+   688→   688→  stockQty      Decimal  @default(0)
+   689→   689→  reorderLevel  Decimal  @default(0)
+   690→   690→  taxRateId     String?
+   691→   691→  isInventory   Boolean  @default(true)
+   692→   692→  isActive      Boolean  @default(true)
+   693→   693→  customFields  String?
+   694→   694→  createdAt     DateTime @default(now())
+   695→   695→  updatedAt     DateTime @updatedAt
+   696→   696→
+   697→   697→  business      Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+   698→   698→  stockMovements StockMovement[]
+   699→   699→
+   700→   700→  @@unique([businessId, sku])
+   701→   701→  @@index([businessId, name])
+   702→   702→}
+   703→   703→
+   704→   704→model Warehouse {
+   705→   705→  id          String   @id @default(cuid())
+   706→   706→  businessId  String
+   707→   707→  name        String
+   708→   708→  code        String
+   709→   709→  address     String?
+   710→   710→  isActive    Boolean  @default(true)
+   711→   711→  createdAt   DateTime @default(now())
+   712→   712→
+   713→   713→  business    Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+   714→   714→  stockMovements StockMovement[]
+   715→   715→}
+   716→   716→
+   717→   717→model StockMovement {
+   718→   718→  id            String   @id @default(cuid())
+   719→   719→  businessId    String
+   720→   720→  itemId        String
+   721→   721→  warehouseId   String?
+   722→   722→  type          String
+   723→   723→  direction     String
+   724→   724→  quantity      Decimal
+   725→   725→  unitCost      Decimal  @default(0)
+   726→   726→  reference     String?
+   727→   727→  referenceType String?
+   728→   728→  referenceId   String?
+   729→   729→  balanceAfter  Decimal
+   730→   730→  date          DateTime
+   731→   731→  createdAt     DateTime @default(now())
+   732→   732→
+   733→   733→  business      Business   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+   734→   734→  item          Item       @relation(fields: [itemId], references: [id], onDelete: Cascade)
+   735→   735→  warehouse     Warehouse? @relation(fields: [warehouseId], references: [id])
+   736→   736→
+   737→   737→  @@index([itemId])
+   738→   738→  @@index([businessId, date])
+   739→   739→}
+   740→   740→
+   741→   741→// ============================================================
+   742→   742→// BANKING
+   743→   743→// ============================================================
+   744→   744→
+   745→   745→model BankAccount {
+   746→   746→  id            String   @id @default(cuid())
+   747→   747→  businessId    String
+   748→   748→  name          String
+   749→   749→  accountNumber String?
+   750→   750→  bankName      String?
+   751→   751→  branch        String?
+   752→   752→  iban          String?
+   753→   753→  openingBalance Decimal @default(0)
+   754→   754→  currentBalance Decimal @default(0)
+   755→   755→  currency      String   @default("AED")
+   756→   756→  isActive      Boolean  @default(true)
+   757→   757→  createdAt     DateTime @default(now())
+   758→   758→  updatedAt     DateTime @updatedAt
+   759→   759→
+   760→   760→  business      Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+   761→   761→  transactions  BankTransaction[]
+   762→   762→}
+   763→   763→
+   764→   764→model BankTransaction {
+   765→   765→  id            String   @id @default(cuid())
+   766→   766→  bankAccountId String
+   767→   767→  date          DateTime
+   768→   768→  description   String?
+   769→   769→  reference     String?
+   770→   770→  amount        Decimal
+   771→   771→  type          String   @default("DEPOSIT")
+   772→   772→  isReconciled  Boolean  @default(false)
+   773→   773→  reconciledAt  DateTime?
+   774→   774→  paymentId     String?
+   775→   775→  createdAt     DateTime @default(now())
+   776→   776→
+   777→   777→  bankAccount   BankAccount @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+   778→   778→
+   779→   779→  @@index([bankAccountId, date])
+   780→   780→  @@index([isReconciled])
+   781→   781→}
+   782→   782→
+   783→   783→// ============================================================
+   784→   784→// CUSTOM FIELDS
+   785→   785→// ============================================================
+   786→   786→
+   787→   787→model CustomFieldDefinition {
+   788→   788→  id            String   @id @default(cuid())
+   789→   789→  businessId    String
+   790→   790→  doctype       String
+   791→   791→  tab           String   @default("General")
+   792→   792→  section       String   @default("Details")
+   793→   793→  fieldKey      String
+   794→   794→  label         String
+   795→   795→  labelAr       String?
+   796→   796→  type          String
+   797→   797→  options       String?
+   798→   798→  defaultValue  String?
+   799→   799→  isRequired    Boolean  @default(false)
+   800→   800→  isVisible     Boolean  @default(true)
+   801→   801→  position      Int      @default(0)
+   802→   802→  createdAt     DateTime @default(now())
+   803→   803→
+   804→   804→  business      Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+   805→   805→
+   806→   806→  @@unique([businessId, doctype, fieldKey])
+   807→   807→  @@index([businessId, doctype])
+   808→   808→}
+   809→   809→
+   810→   810→// ============================================================
+   811→   811→// PDF TEMPLATES
+   812→   812→// ============================================================
+   813→   813→
+   814→   814→model PdfTemplate {
+   815→   815→  id            String   @id @default(cuid())
+   816→   816→  businessId    String
+   817→   817→  name          String
+   818→   818→  doctype       String
+   819→   819→  htmlContent   String
+   820→   820→  cssContent    String
+   821→   821→  isDefault     Boolean  @default(false)
+   822→   822→  isSystem      Boolean  @default(false)
+   823→   823→  createdAt     DateTime @default(now())
+   824→   824→  updatedAt     DateTime @updatedAt
+   825→   825→
+   826→   826→  business      Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+   827→   827→
+   828→   828→  @@unique([businessId, name])
+   829→   829→  @@index([businessId, doctype])
+   830→   830→}
+   831→   831→
+   832→   832→// ============================================================
+   833→   833→// AUDIT LOG
+   834→   834→// ============================================================
+   835→   835→
+   836→   836→model AuditLog {
+   837→   837→  id            String   @id @default(cuid())
+   838→   838→  businessId    String
+   839→   839→  tenantId      String
+   840→   840→  userId        String?
+   841→   841→  action        String
+   842→   842→  entityType    String
+   843→   843→  entityId      String
+   844→   844→  description   String?
+   845→   845→  changes       String?
+   846→   846→  ipAddress     String?
+   847→   847→  createdAt     DateTime @default(now())
+   848→   848→
+   849→   849→  business      Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+   850→   850→  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+   851→   851→  user          User?    @relation(fields: [userId], references: [id])
+   852→   852→
+   853→   853→  @@index([businessId, entityType, entityId])
+   854→   854→  @@index([tenantId, createdAt])
+   855→   855→}
+   856→   856→
+   857→   857→// ============================================================
+   858→   858→// ACTIVITY LOG (document-level chatter, inspired by Odoo/Frappe)
+   859→   859→// ============================================================
+   860→   860→
+   861→   861→model ActivityLog {
+   862→   862→  id            String   @id @default(cuid())
+   863→   863→  businessId    String
+   864→   864→  userId        String
+   865→   865→  entityType    String   // SALES_INVOICE, PURCHASE_BILL, etc.
+   866→   866→  entityId      String
+   867→   867→  action        String   // CREATED, UPDATED, POSTED, COMMENTED, EMAILED
+   868→   868→  message       String
+   869→   869→  metadata      String?  // JSON
+   870→   870→  createdAt     DateTime @default(now())
+   871→   871→
+   872→   872→  business      Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+   873→   873→  user          User     @relation(fields: [userId], references: [id])
+   874→   874→
+   875→   875→  @@index([businessId, entityType, entityId])
+   876→   876→  @@index([createdAt])
+   877→   877→}
+   878→   878→
+   879→   879→// ============================================================
+   880→   880→// APP SETTINGS
+   881→   881→// ============================================================
+   882→   882→
+   883→   883→model AppSetting {
+   884→   884→  id    String @id @default(cuid())
+   885→   885→  key   String @unique
+   886→   886→  value String
+   887→   887→}
+   888→   888→
