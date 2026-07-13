@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { ensureBusinessId, getCurrentTenantId, getSession , AuthError } from '@/lib/auth'
 import { postJournalEntry } from '@/lib/journal-service'
 import { calculateLine, calculateDocumentTotals, generateEInvoiceUuid } from '@/lib/vat-service'
+import { invoiceSchema, validateBody } from '@/lib/validation-schemas'
 import { toNumber, money } from '@/lib/decimal'
 
 // GET /api/invoices?id=xxx (single) or list
@@ -14,7 +15,9 @@ export async function GET(req: NextRequest) {
   const id = searchParams.get('id')
   const status = searchParams.get('status')
   const partyId = searchParams.get('partyId')
-  const limit = parseInt(searchParams.get('limit') || '50')
+  const search = searchParams.get('search')
+  const cursor = searchParams.get('cursor')
+  const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '50'), 1), 100)
 
   if (id) {
     // SECURITY: Verify invoice belongs to current business (tenant isolation)
@@ -46,18 +49,31 @@ export async function GET(req: NextRequest) {
     })
   }
 
-  const where: { businessId: string; status?: string; partyId?: string } = { businessId }
-  if (status) where.status = status
+  const where: any = { businessId }
+  if (status && status !== 'ALL') where.status = status
   if (partyId) where.partyId = partyId
+  if (search) {
+    where.OR = [
+      { number: { contains: search } },
+      { reference: { contains: search } },
+      { party: { name: { contains: search } } },
+    ]
+  }
 
   const invoices = await db.salesInvoice.findMany({
     where,
     include: { party: { select: { name: true } } },
-    orderBy: { date: 'desc' },
-    take: limit,
+    orderBy: [{ date: 'desc' }, { id: 'desc' }],
+    take: limit + 1,
+    ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
   })
+  
+  const hasMore = invoices.length > limit
+  const items = hasMore ? invoices.slice(0, -1) : invoices
+  const nextCursor = hasMore ? items[items.length - 1]?.id : null
 
-  return NextResponse.json(invoices.map(inv => ({
+  return NextResponse.json({
+    items: items.map(inv => ({
     id: inv.id,
     number: inv.number,
     date: inv.date,
@@ -72,7 +88,10 @@ export async function GET(req: NextRequest) {
     balanceDue: toNumber(money(inv.total).minus(money(inv.amountPaid))),
     status: inv.status,
     currency: inv.currency,
-  })))
+  })),
+    nextCursor,
+    hasMore,
+  })
 }
 
 // POST /api/invoices — create (and optionally post) invoice
@@ -81,6 +100,13 @@ export async function POST(req: NextRequest) {
   
 
   const body = await req.json()
+  
+  // Validate input with Zod
+  const validation = validateBody(invoiceSchema, body)
+  if (!validation.success) {
+    return NextResponse.json({ error: 'Validation failed', fieldErrors: validation.errors }, { status: 400 })
+  }
+  
   const business = await db.business.findUnique({ where: { id: businessId } })
   if (!business) return NextResponse.json({ error: 'Business not found' }, { status: 400 })
 
@@ -202,6 +228,13 @@ export async function PUT(req: NextRequest) {
   }
 
   const body = await req.json()
+  
+  // Validate input with Zod
+  const validation = validateBody(invoiceSchema, body)
+  if (!validation.success) {
+    return NextResponse.json({ error: 'Validation failed', fieldErrors: validation.errors }, { status: 400 })
+  }
+  
   const business = await db.business.findUnique({ where: { id: businessId } })
   if (!business) return NextResponse.json({ error: 'Business not found' }, { status: 400 })
 

@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { ensureBusinessId, getCurrentTenantId, getSession , AuthError } from '@/lib/auth'
 import { postJournalEntry, reverseJournalEntry } from '@/lib/journal-service'
 import { calculateLine, calculateDocumentTotals } from '@/lib/vat-service'
+import { billSchema, validateBody } from '@/lib/validation-schemas'
 import { toNumber, money } from '@/lib/decimal'
 
 // GET /api/bills?id=xxx or list
@@ -12,7 +13,7 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url)
   const id = searchParams.get('id')
-  const limit = parseInt(searchParams.get('limit') || '50')
+  const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '50'), 1), 100)
 
   if (id) {
     // SECURITY: Verify bill belongs to current business (tenant isolation)
@@ -71,6 +72,13 @@ export async function POST(req: NextRequest) {
   
 
   const body = await req.json()
+  
+  // Validate input with Zod
+  const validation = validateBody(billSchema, body)
+  if (!validation.success) {
+    return NextResponse.json({ error: 'Validation failed', fieldErrors: validation.errors }, { status: 400 })
+  }
+  
   const business = await db.business.findUnique({ where: { id: businessId } })
   if (!business) return NextResponse.json({ error: 'Business not found' }, { status: 400 })
 

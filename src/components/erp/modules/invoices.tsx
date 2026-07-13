@@ -12,6 +12,7 @@ import { Plus, Trash2, Save, Send, ArrowLeft, Printer, FileText, Search } from '
 import { fmtMoney, fmtDate, fmtNumber, StatusBadge, LoadingSpinner, EmptyState, useFetch, PageHeader, useBusiness } from '../shared/ui-helpers'
 import type { ModuleProps } from '../app-shell'
 import { toast } from 'sonner'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 
 interface Invoice {
   id: string
@@ -188,6 +189,9 @@ function InvoiceForm({ navigate, editId }: any & { editId?: string }) {
     }
   }, [editId, editInvoice, business, form])
 
+  const [saving, setSaving] = React.useState(false)
+  const [showPostConfirm, setShowPostConfirm] = React.useState(false)
+
   if (editId && !editInvoice) return <LoadingSpinner message="Loading invoice..." />
   if (!form) return <LoadingSpinner />
 
@@ -279,7 +283,7 @@ function InvoiceForm({ navigate, editId }: any & { editId?: string }) {
         actions={
           <>
             <Button variant="outline" onClick={() => save(false)}><Save className="mr-2 h-4 w-4" /> Save Draft</Button>
-            <Button onClick={() => save(true)}><Send className="mr-2 h-4 w-4" /> Save & Post</Button>
+            <Button onClick={() => setShowPostConfirm(true)}><Send className="mr-2 h-4 w-4" /> Review & Post</Button>
           </>
         }
       />
@@ -404,6 +408,31 @@ function InvoiceForm({ navigate, editId }: any & { editId?: string }) {
           </div>
         </CardContent>
       </Card>
+
+      {/* Post Confirmation Dialog */}
+      <AlertDialog open={showPostConfirm} onOpenChange={setShowPostConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Post Invoice?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Posting this invoice will create permanent journal entries and cannot be undone. 
+              Corrections must be made via credit notes.
+              <br /><br />
+              <strong>Customer:</strong> {parties?.find(p => p.id === form.partyId)?.name || '—'}<br />
+              <strong>Date:</strong> {form.date}<br />
+              <strong>Subtotal:</strong> {fmtMoney(subtotal, currency)}<br />
+              <strong>VAT:</strong> {fmtMoney(totalTax, currency)}<br />
+              <strong>Total:</strong> {fmtMoney(total, currency)}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { setShowPostConfirm(false); save(true) }}>
+              Yes, Post Invoice
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Notes & Terms */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
