@@ -409,6 +409,9 @@ model SalesInvoice {
 
   @@unique([businessId, number])
   @@index([businessId, date])
+  @@index([businessId, status, date])
+  @@index([businessId, partyId, date])
+  @@index([businessId, number])
   @@index([partyId])
   @@index([status])
 }
@@ -468,6 +471,9 @@ model PurchaseBill {
 
   @@unique([businessId, number])
   @@index([businessId, date])
+  @@index([businessId, status, date])
+  @@index([businessId, partyId, date])
+  @@index([businessId, number])
   @@index([partyId])
   @@index([status])
 }

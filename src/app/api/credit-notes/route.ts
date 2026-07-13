@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { ensureBusinessId, getCurrentTenantId, getSession } from '@/lib/auth'
 import { calculateLine, calculateDocumentTotals } from '@/lib/vat-service'
+import { creditNoteSchema, validateBody } from '@/lib/validation-schemas'
 import { postJournalEntry, reverseJournalEntry } from '@/lib/journal-service'
 import { toNumber, money } from '@/lib/decimal'
 
@@ -40,6 +41,13 @@ export async function POST(req: NextRequest) {
   
 
   const body = await req.json()
+  
+  // Validate input
+  const validation = validateBody(creditNoteSchema, body)
+  if (!validation.success) {
+    return NextResponse.json({ error: 'Validation failed', fieldErrors: validation.errors }, { status: 400 })
+  }
+  
   const business = await db.business.findUnique({ where: { id: businessId } })
   if (!business) return NextResponse.json({ error: 'Business not found' }, { status: 400 })
 

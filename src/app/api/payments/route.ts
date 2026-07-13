@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { ensureBusinessId, getCurrentTenantId, getSession } from '@/lib/auth'
 import { postJournalEntry } from '@/lib/journal-service'
 import { toNumber, money } from '@/lib/decimal'
+import { paymentSchema, validateBody } from '@/lib/validation-schemas'
 
 // GET /api/payments?type=RECEIPT|PAYMENT
 export async function GET(req: NextRequest) {
@@ -41,6 +42,13 @@ export async function POST(req: NextRequest) {
   
 
   const body = await req.json()
+  
+  // Validate input
+  const validation = validateBody(paymentSchema, body)
+  if (!validation.success) {
+    return NextResponse.json({ error: 'Validation failed', fieldErrors: validation.errors }, { status: 400 })
+  }
+  
   const business = await db.business.findUnique({ where: { id: businessId } })
   if (!business) return NextResponse.json({ error: 'Business not found' }, { status: 400 })
 

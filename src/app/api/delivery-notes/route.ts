@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { ensureBusinessId, getCurrentTenantId } from '@/lib/auth'
 import { toNumber } from '@/lib/decimal'
+import { deliveryNoteSchema, validateBody } from '@/lib/validation-schemas'
 
 // GET /api/delivery-notes
 export async function GET(req: NextRequest) {
@@ -37,6 +38,13 @@ export async function POST(req: NextRequest) {
   
 
   const body = await req.json()
+  
+  // Validate input
+  const validation = validateBody(deliveryNoteSchema, body)
+  if (!validation.success) {
+    return NextResponse.json({ error: 'Validation failed', fieldErrors: validation.errors }, { status: 400 })
+  }
+  
   const business = await db.business.findUnique({ where: { id: businessId } })
   if (!business) return NextResponse.json({ error: 'Business not found' }, { status: 400 })
 
