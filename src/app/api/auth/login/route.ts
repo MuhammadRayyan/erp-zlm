@@ -77,6 +77,6 @@ export async function POST(req: NextRequest) {
       tenantRole: membership?.role || null,
     })
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 400 })
+    console.error('[API Error]', e); return NextResponse.json({ error: 'An unexpected error occurred' }, { status: 500 })
   }
 }

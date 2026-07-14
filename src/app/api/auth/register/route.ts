@@ -13,6 +13,10 @@ const registerSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
+    // Gate: only allow registration if explicitly enabled
+    if (process.env.ALLOW_REGISTRATION !== 'true' && process.env.NODE_ENV === 'production') {
+      return NextResponse.json({ error: 'Registration is currently closed. Contact your administrator.' }, { status: 403 })
+    }
     const ip = req.headers.get('x-forwarded-for')?.split(',')[0] || req.headers.get('x-real-ip') || 'unknown'
     if (!checkRegisterRateLimit(ip)) {
       return NextResponse.json({ error: 'Too many registration attempts. Please try again later.' }, { status: 429, headers: { 'Retry-After': '3600' } })
@@ -127,6 +131,6 @@ export async function POST(req: NextRequest) {
       businessId: business.id,
     })
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 400 })
+    console.error('[API Error]', e); return NextResponse.json({ error: 'An unexpected error occurred' }, { status: 500 })
   }
 }

@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs'
-import jwt from 'jsonwebtoken'
+import { SignJWT, jwtVerify } from 'jose'
 import { cookies } from 'next/headers'
 import { db } from './db'
 
@@ -46,13 +46,19 @@ export interface SessionPayload {
   businessId?: string | null
 }
 
-export function createSessionToken(payload: SessionPayload): string {
-  return jwt.sign(payload, SECRET, { expiresIn: '7d' })
+export async function createSessionToken(payload: SessionPayload): Promise<string> {
+  const secret = new TextEncoder().encode(SECRET)
+  return new SignJWT({ ...payload })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setExpirationTime('7d')
+    .sign(secret)
 }
 
-export function verifySessionToken(token: string): SessionPayload | null {
+export async function verifySessionToken(token: string): Promise<SessionPayload | null> {
   try {
-    return jwt.verify(token, SECRET) as SessionPayload
+    const secret = new TextEncoder().encode(SECRET)
+    const { payload } = await jwtVerify(token, secret)
+    return payload as unknown as SessionPayload
   } catch {
     return null
   }
@@ -71,7 +77,7 @@ export async function getSession(): Promise<SessionPayload | null> {
 
 export async function setSession(payload: SessionPayload) {
   const cookieStore = await cookies()
-  const token = createSessionToken(payload)
+  const token = await createSessionToken(payload)
   cookieStore.set(SESSION_COOKIE, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',

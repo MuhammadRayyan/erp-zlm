@@ -56,6 +56,7 @@ model Tenant {
   members       UserTenant[]
   businesses    Business[]
   auditLogs     AuditLog[]
+  licenses      License[]
 }
 
 // A user's membership in a tenant, with a role
@@ -117,6 +118,7 @@ model License {
   id            String   @id @default(cuid())
   key           String   @unique
   tenantId      String?  // null = unassigned
+  tenant        Tenant?  @relation(fields: [tenantId], references: [id])
   planName      String
   type          String   @default("ANNUAL") // LIFETIME, ANNUAL, MONTHLY
   maxBusinesses Int      @default(1)
