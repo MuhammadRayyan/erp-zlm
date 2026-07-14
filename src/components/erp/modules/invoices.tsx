@@ -119,8 +119,8 @@ function InvoiceList({ navigate }: any) {
                   <TableHead>Date</TableHead>
                   <TableHead>Customer</TableHead>
                   <TableHead>Due Date</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
-                  <TableHead className="text-right">Balance</TableHead>
+                  <TableHead className="text-right table-nums">Total</TableHead>
+                  <TableHead className="text-right table-nums">Balance</TableHead>
                   <TableHead>Status</TableHead>
                 </TableRow>
               </TableHeader>
@@ -131,8 +131,8 @@ function InvoiceList({ navigate }: any) {
                     <TableCell>{fmtDate(inv.date)}</TableCell>
                     <TableCell>{inv.partyName}</TableCell>
                     <TableCell>{fmtDate(inv.dueDate)}</TableCell>
-                    <TableCell className="text-right font-medium">{fmtMoney(inv.total, inv.currency)}</TableCell>
-                    <TableCell className="text-right">{fmtMoney(inv.balanceDue, inv.currency)}</TableCell>
+                    <TableCell className="text-right font-medium table-nums">{fmtMoney(inv.total, inv.currency)}</TableCell>
+                    <TableCell className="text-right table-nums">{fmtMoney(inv.balanceDue, inv.currency)}</TableCell>
                     <TableCell><StatusBadge status={inv.status} /></TableCell>
                   </TableRow>
                 ))}
@@ -386,7 +386,7 @@ function InvoiceForm({ navigate, editId }: any & { editId?: string }) {
                         </SelectContent>
                       </Select>
                     </TableCell>
-                    <TableCell className="text-right font-medium">{fmtMoney(line.total, currency)}</TableCell>
+                    <TableCell className="text-right font-medium table-nums">{fmtMoney(line.total, currency)}</TableCell>
                     <TableCell>
                       <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600" onClick={() => removeLine(i)} disabled={form.lines.length === 1}>
                         <Trash2 className="h-3.5 w-3.5" />
@@ -512,7 +512,7 @@ function InvoiceView({ navigate, id }: any & { id: string }) {
                     {business?.addressLine1 && <p className="text-sm text-muted-foreground">{business.addressLine1}</p>}
                     {business?.trn && <p className="mt-1 text-sm font-medium">TRN: {business.trn}</p>}
                   </div>
-                  <div className="text-right">
+                  <div className="text-right table-nums">
                     <h2 className="text-2xl font-bold uppercase tracking-wide">Invoice</h2>
                     <p className="mt-1 font-semibold text-emerald-600">{invoice.number}</p>
                     <p className="text-sm text-muted-foreground">{fmtDate(invoice.date)}</p>
@@ -526,7 +526,7 @@ function InvoiceView({ navigate, id }: any & { id: string }) {
                     <p className="mt-1 font-semibold">{invoice.partyName}</p>
                     {invoice.reference && <p className="text-sm text-muted-foreground">Ref: {invoice.reference}</p>}
                   </div>
-                  <div className="text-right">
+                  <div className="text-right table-nums">
                     <p className="text-xs uppercase text-muted-foreground">Due Date</p>
                     <p className="mt-1 font-semibold">{fmtDate(invoice.dueDate)}</p>
                   </div>
@@ -536,22 +536,22 @@ function InvoiceView({ navigate, id }: any & { id: string }) {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Description</TableHead>
-                      <TableHead className="text-right">Qty</TableHead>
-                      <TableHead className="text-right">Price</TableHead>
-                      <TableHead className="text-right">Disc%</TableHead>
-                      <TableHead className="text-right">Tax%</TableHead>
-                      <TableHead className="text-right">Amount</TableHead>
+                      <TableHead className="text-right table-nums">Qty</TableHead>
+                      <TableHead className="text-right table-nums">Price</TableHead>
+                      <TableHead className="text-right table-nums">Disc%</TableHead>
+                      <TableHead className="text-right table-nums">Tax%</TableHead>
+                      <TableHead className="text-right table-nums">Amount</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {invoice.lines.map((l, i) => (
                       <TableRow key={i}>
                         <TableCell>{l.description}</TableCell>
-                        <TableCell className="text-right">{fmtNumber(l.quantity)}</TableCell>
-                        <TableCell className="text-right">{fmtMoney(l.unitPrice, currency)}</TableCell>
-                        <TableCell className="text-right">{l.discount}%</TableCell>
-                        <TableCell className="text-right">{(l as any).taxRate?.rate ?? 0}%</TableCell>
-                        <TableCell className="text-right font-medium">{fmtMoney(l.lineTotal + l.lineTax, currency)}</TableCell>
+                        <TableCell className="text-right table-nums">{fmtNumber(l.quantity)}</TableCell>
+                        <TableCell className="text-right table-nums">{fmtMoney(l.unitPrice, currency)}</TableCell>
+                        <TableCell className="text-right table-nums">{l.discount}%</TableCell>
+                        <TableCell className="text-right table-nums">{(l as any).taxRate?.rate ?? 0}%</TableCell>
+                        <TableCell className="text-right font-medium table-nums">{fmtMoney(l.lineTotal + l.lineTax, currency)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

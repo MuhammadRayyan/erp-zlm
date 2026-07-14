@@ -95,7 +95,7 @@ export function Sidebar({ activeModule, onNavigate, auth, onLogout }: SidebarPro
                     className={cn(
                       "flex w-full items-center gap-3 px-3 py-2 text-sm font-medium transition-colors",
                       "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                      isActive && "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400",
+                      isActive && "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400 shadow-sm",
                       collapsed && "justify-center px-2",
                       !isActive && "text-sidebar-foreground/80"
                     )}

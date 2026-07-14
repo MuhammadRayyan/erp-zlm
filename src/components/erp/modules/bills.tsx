@@ -56,7 +56,7 @@ function BillList({ navigate }: any) {
             <TableHeader><TableRow>
               <TableHead>Number</TableHead><TableHead>Date</TableHead><TableHead>Supplier</TableHead>
               <TableHead>Supplier Inv #</TableHead><TableHead>Due Date</TableHead>
-              <TableHead className="text-right">Total</TableHead><TableHead className="text-right">Balance</TableHead><TableHead>Status</TableHead>
+              <TableHead className="text-right table-nums">Total</TableHead><TableHead className="text-right table-nums">Balance</TableHead><TableHead>Status</TableHead>
             </TableRow></TableHeader>
             <TableBody>
               {filtered.map(b => (
@@ -66,8 +66,8 @@ function BillList({ navigate }: any) {
                   <TableCell>{b.partyName}</TableCell>
                   <TableCell>{b.supplierInvoiceNumber || '—'}</TableCell>
                   <TableCell>{fmtDate(b.dueDate)}</TableCell>
-                  <TableCell className="text-right font-medium">{fmtMoney(b.total, b.currency)}</TableCell>
-                  <TableCell className="text-right">{fmtMoney(b.balanceDue, b.currency)}</TableCell>
+                  <TableCell className="text-right font-medium table-nums">{fmtMoney(b.total, b.currency)}</TableCell>
+                  <TableCell className="text-right table-nums">{fmtMoney(b.balanceDue, b.currency)}</TableCell>
                   <TableCell><StatusBadge status={b.status} /></TableCell>
                 </TableRow>
               ))}
@@ -145,7 +145,7 @@ function BillForm({ navigate }: any) {
                 <TableCell><Input type="number" step="0.01" value={l.unitPrice} onChange={e => { const lines = [...form.lines]; lines[i] = { ...lines[i], unitPrice: parseFloat(e.target.value) || 0 }; setForm({ ...form, lines }) }} /></TableCell>
                 <TableCell><Input type="number" step="0.01" value={l.discount} onChange={e => { const lines = [...form.lines]; lines[i] = { ...lines[i], discount: parseFloat(e.target.value) || 0 }; setForm({ ...form, lines }) }} /></TableCell>
                 <TableCell><Select value={(l as any).taxRateId || `_rate_${l.taxRate}`} onValueChange={v => { if (v.startsWith('_rate_')) { const lines = [...form.lines]; lines[i] = { ...lines[i], taxRate: parseFloat(v.replace('_rate_', '')), taxRateId: undefined }; setForm({ ...form, lines }) } else { const tr = taxRates?.find(t => t.id === v); const lines = [...form.lines]; lines[i] = { ...lines[i], taxRateId: v, taxRate: tr?.rate ?? 0 }; setForm({ ...form, lines }) } }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value={`_rate_${vatRate}`}>VAT {vatRate}%</SelectItem><SelectItem value="_rate_0">No Tax</SelectItem>{taxRates?.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent></Select></TableCell>
-                <TableCell className="text-right font-medium">{fmtMoney(l.lineTotal + l.lineTax, currency)}</TableCell>
+                <TableCell className="text-right font-medium table-nums">{fmtMoney(l.lineTotal + l.lineTax, currency)}</TableCell>
                 <TableCell><Button variant="ghost" size="icon" className="h-8 w-8 text-red-600" onClick={() => setForm({ ...form, lines: form.lines.filter((_, idx) => idx !== i) })} disabled={form.lines.length === 1}><Trash2 className="h-3.5 w-3.5" /></Button></TableCell>
               </TableRow>
             ))}
@@ -181,11 +181,11 @@ function BillView({ navigate, id }: any & { id: string }) {
       <Card><CardContent className="p-6">
         <div className="flex items-start justify-between border-b pb-4">
           <div><h3 className="text-xl font-bold">{bill.partyName}</h3>{bill.supplierInvoiceNumber && <p className="text-sm text-muted-foreground">Supplier Inv: {bill.supplierInvoiceNumber}</p>}</div>
-          <div className="text-right"><h2 className="text-2xl font-bold uppercase">Bill</h2><p className="font-semibold text-emerald-600">{bill.number}</p><p className="text-sm text-muted-foreground">{fmtDate(bill.date)}</p><div className="mt-2"><StatusBadge status={bill.status} /></div></div>
+          <div className="text-right table-nums"><h2 className="text-2xl font-bold uppercase">Bill</h2><p className="font-semibold text-emerald-600">{bill.number}</p><p className="text-sm text-muted-foreground">{fmtDate(bill.date)}</p><div className="mt-2"><StatusBadge status={bill.status} /></div></div>
         </div>
         <Table className="mt-6">
-          <TableHeader><TableRow><TableHead>Description</TableHead><TableHead className="text-right">Qty</TableHead><TableHead className="text-right">Price</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader>
-          <TableBody>{bill.lines.map((l, i) => <TableRow key={i}><TableCell>{l.description}</TableCell><TableCell className="text-right">{fmtNumber(l.quantity)}</TableCell><TableCell className="text-right">{fmtMoney(l.unitPrice, currency)}</TableCell><TableCell className="text-right font-medium">{fmtMoney(l.lineTotal + l.lineTax, currency)}</TableCell></TableRow>)}</TableBody>
+          <TableHeader><TableRow><TableHead>Description</TableHead><TableHead className="text-right table-nums">Qty</TableHead><TableHead className="text-right table-nums">Price</TableHead><TableHead className="text-right table-nums">Amount</TableHead></TableRow></TableHeader>
+          <TableBody>{bill.lines.map((l, i) => <TableRow key={i}><TableCell>{l.description}</TableCell><TableCell className="text-right table-nums">{fmtNumber(l.quantity)}</TableCell><TableCell className="text-right table-nums">{fmtMoney(l.unitPrice, currency)}</TableCell><TableCell className="text-right font-medium table-nums">{fmtMoney(l.lineTotal + l.lineTax, currency)}</TableCell></TableRow>)}</TableBody>
         </Table>
         <div className="mt-4 flex justify-end"><div className="w-64 space-y-2">
           <div className="flex justify-between text-sm"><span className="text-muted-foreground">Subtotal</span><span>{fmtMoney(bill.subtotal, currency)}</span></div>

@@ -118,5 +118,29 @@
   }
   body {
     @apply bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+  }
+  /* Financial tables: right-aligned numbers with tabular figures */
+  .table-nums {
+    font-variant-numeric: tabular-nums;
+  }
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.5);
+  }
+  /* Smooth transitions for interactive elements */
+  button, a, [role="button"] {
+    transition: all 150ms ease;
   }
 }
