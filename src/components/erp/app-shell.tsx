@@ -23,8 +23,18 @@ import { CustomFieldsModule } from './modules/custom-fields'
 import { SettingsModule } from './modules/settings'
 import { AdminPortal } from './modules/admin-portal'
 import { TenantPortal } from './modules/tenant-portal'
+import { BackupModule } from './modules/backup'
+import { EmailSettingsModule } from './modules/email-settings'
+import { RecurringModule } from './modules/recurring'
+import { BudgetsModule } from './modules/budgets'
+import { ApprovalsModule } from './modules/approvals'
+import { InterCompanyModule } from './modules/inter-company'
+import { ReconciliationModule } from './modules/reconciliation'
+import { StatementsModule } from './modules/statements'
+import { ProfileModule } from './modules/profile'
 import { AuthScreen } from './auth-screen'
 import { ModuleErrorBoundary } from './error-boundary'
+import { GlobalSearch } from './global-search'
 
 export interface Business {
   id: string
@@ -62,13 +72,10 @@ export function AppShell() {
   const activeModule = searchParams.get('m') || 'dashboard'
   const [auth, setAuth] = React.useState<AuthState | null>(null)
   const [loading, setLoading] = React.useState(true)
+  const [searchOpen, setSearchOpen] = React.useState(false)
 
   const checkAuth = React.useCallback(async () => {
     try {
-      // Ensure seeded
-      const initRes = await fetch('/api/init', { method: 'POST' })
-      // Ignore init result — may already be seeded
-
       const res = await fetch('/api/auth/me')
       const data = await res.json()
       setAuth(data)
@@ -83,14 +90,61 @@ export function AppShell() {
     checkAuth()
   }, [checkAuth])
 
+  // Keyboard shortcut for global search (Cmd+K / Ctrl+K)
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        setSearchOpen(prev => !prev)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
   const navigate = (m: string, params?: Record<string, string>) => {
     const sp = new URLSearchParams({ m, ...params })
     router.push(`/?${sp.toString()}`)
   }
 
-  const refreshAuth = () => checkAuth()
+  const navigateToUrl = (url: string) => {
+    router.push(url)
+  }
 
-  if (loading) {
+  // Called by AuthScreen after successful login
+  const handleAuthed = async (authData: { userId: string; email: string; name: string; role: string; tenantId: string | null; tenantRole: string | null }) => {
+    const initialAuth: AuthState = {
+      authenticated: true,
+      user: { id: authData.userId, email: authData.email, name: authData.name, role: authData.role },
+      tenants: [],
+      currentTenantId: authData.tenantId,
+      currentTenantRole: authData.tenantRole,
+      currentBusinessId: null,
+      currentBusinessName: null,
+    }
+    setAuth(initialAuth)
+    setLoading(false)
+    try {
+      const res = await fetch('/api/auth/me')
+      const data = await res.json()
+      if (data.authenticated) setAuth(data)
+    } catch (e) {
+      console.error('Background auth fetch error:', e)
+    }
+  }
+
+  const refreshAuth = async () => {
+    try {
+      const res = await fetch('/api/auth/me')
+      const data = await res.json()
+      setAuth(data)
+      setLoading(false)
+    } catch (e) {
+      console.error('refreshAuth error:', e)
+    }
+  }
+
+  if (loading && !auth) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="flex flex-col items-center gap-3">
@@ -102,11 +156,10 @@ export function AppShell() {
   }
 
   if (!auth?.authenticated) {
-    return <AuthScreen onAuthed={refreshAuth} />
+    return <AuthScreen onAuthed={handleAuthed} />
   }
 
   const isPlatformAdmin = auth.user.role === 'PLATFORM_ADMIN'
-
   const moduleProps = { business: null, navigate, searchParams, auth, refreshAuth }
 
   const renderModule = () => {
@@ -124,10 +177,19 @@ export function AppShell() {
       case 'delivery-notes': return <DeliveryNotesModule {...moduleProps} />
       case 'items': return <ItemsModule {...moduleProps} />
       case 'banking': return <BankingModule {...moduleProps} />
+      case 'reconciliation': return <ReconciliationModule {...moduleProps} />
       case 'reports': return <ReportsModule {...moduleProps} />
+      case 'statements': return <StatementsModule {...moduleProps} />
       case 'templates': return <TemplatesModule {...moduleProps} />
       case 'custom-fields': return <CustomFieldsModule {...moduleProps} />
       case 'settings': return <SettingsModule {...moduleProps} />
+      case 'backup': return <BackupModule {...moduleProps} />
+      case 'email': return <EmailSettingsModule {...moduleProps} />
+      case 'recurring': return <RecurringModule {...moduleProps} />
+      case 'budgets': return <BudgetsModule {...moduleProps} />
+      case 'approvals': return <ApprovalsModule {...moduleProps} />
+      case 'inter-company': return <InterCompanyModule {...moduleProps} />
+      case 'profile': return <ProfileModule {...moduleProps} />
       case 'admin-portal': return <AdminPortal {...moduleProps} />
       case 'tenant-portal': return <TenantPortal {...moduleProps} />
       default: return <Dashboard {...moduleProps} />
@@ -136,13 +198,14 @@ export function AppShell() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
+      <GlobalSearch open={searchOpen} onOpenChange={setSearchOpen} onNavigate={navigateToUrl} />
       <Sidebar activeModule={activeModule} onNavigate={navigate} auth={auth} onLogout={refreshAuth} />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Topbar auth={auth} module={activeModule} onRefresh={refreshAuth} />
         <main className="flex-1 overflow-y-auto">
           <div className="mx-auto max-w-[1400px] p-4 md:p-6">
             <ModuleErrorBoundary moduleName={MODULE_LABELS[activeModule] || activeModule}>
-            {renderModule()}
+              {renderModule()}
             </ModuleErrorBoundary>
           </div>
         </main>
