@@ -1,3 +1,20 @@
+// ============================================================
+// DECIMAL MATH — Financial calculation utilities
+// ============================================================
+// ALL monetary calculations MUST use these functions, never native
+// JavaScript numbers (floating point causes rounding errors).
+//
+// Uses decimal.js with precision=30, ROUND_HALF_UP.
+//
+// Key functions:
+// - money(v): Convert to Decimal
+// - add/sub/mul/div: Arithmetic
+// - lineTotal(qty, price, discount): Calculate line net amount
+// - calcVAT(amount, rate): Calculate VAT on an amount
+// - formatMoney(v, currency): Display formatting
+// - toNumber(v): Convert to JS number for JSON responses
+// ============================================================
+
 import Decimal from 'decimal.js'
 
 // Configure decimal.js for financial precision

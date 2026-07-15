@@ -1,3 +1,17 @@
+// ============================================================
+// MIDDLEWARE — Global API route protection
+// ============================================================
+// Runs on every /api/* request (except public auth routes).
+// Verifies JWT cryptographic signature using jose (Edge-compatible).
+// If token is missing, invalid, or expired → returns 401.
+//
+// Public routes (no auth required):
+// - /api/auth/login
+// - /api/auth/register
+// - /api/auth/logout
+// - /api/init
+// ============================================================
+
 import { NextRequest, NextResponse } from 'next/server'
 import { jwtVerify } from 'jose'
 

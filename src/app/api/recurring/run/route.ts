@@ -227,7 +227,7 @@ export async function POST(req: NextRequest) {
             description: l.description,
           })),
         })
-        const entry = await db.journalEntry.findUnique({ where: { id: entryId } })
+        const entry = await db.journalEntry.findFirst({ where: { id: entryId, businessId } })
         result = { type: 'JOURNAL', id: entryId, number: entry?.number }
         break
       }
