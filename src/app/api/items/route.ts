@@ -32,9 +32,10 @@ export async function POST(req: NextRequest) {
   
 
   const body = await req.json()
-  const item = await db.item.create({
-    data: {
-      businessId,
+  try {
+    const item = await db.item.create({
+      data: {
+        businessId,
       sku: body.sku,
       name: body.name,
       nameAr: body.nameAr || null,
@@ -52,6 +53,13 @@ export async function POST(req: NextRequest) {
     },
   })
   return NextResponse.json(item)
+  } catch (e) {
+    const msg = (e as Error).message || ''
+    if (msg.includes('Unique')) {
+      return NextResponse.json({ error: 'SKU already exists. Use a different SKU.' }, { status: 409 })
+    }
+    return NextResponse.json({ error: 'Failed to create item' }, { status: 500 })
+  }
 }
 
 // PUT

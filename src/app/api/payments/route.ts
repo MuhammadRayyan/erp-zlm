@@ -69,6 +69,27 @@ const amount = toNumber(money(body.amount))
     if (totalAllocated > amount) {
       return NextResponse.json({ error: `Allocated amount (${totalAllocated}) exceeds payment amount (${amount})` }, { status: 400 })
     }
+    // Check each allocation doesn't exceed the invoice/bill balance
+    for (const alloc of body.allocations) {
+      if (alloc.invoiceId) {
+        const inv = await db.salesInvoice.findFirst({ where: { id: alloc.invoiceId, businessId } })
+        if (inv) {
+          const balance = Number(inv.total) - Number(inv.amountPaid)
+          if (alloc.amount > balance) {
+            return NextResponse.json({ error: `Allocation (${alloc.amount}) exceeds invoice balance (${balance}) for ${inv.number}` }, { status: 400 })
+          }
+        }
+      }
+      if (alloc.billId) {
+        const bill = await db.purchaseBill.findFirst({ where: { id: alloc.billId, businessId } })
+        if (bill) {
+          const balance = Number(bill.total) - Number(bill.amountPaid)
+          if (alloc.amount > balance) {
+            return NextResponse.json({ error: `Allocation (${alloc.amount}) exceeds bill balance (${balance}) for ${bill.number}` }, { status: 400 })
+          }
+        }
+      }
+    }
   }
 
   // Create payment

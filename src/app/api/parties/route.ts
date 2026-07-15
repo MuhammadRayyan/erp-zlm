@@ -100,9 +100,18 @@ export async function POST(req: NextRequest) {
 
 // PUT /api/parties?id=xxx
 export async function PUT(req: NextRequest) {
+  let businessId: string
+  try { businessId = await ensureBusinessId() } catch (e) {
+    if (e instanceof AuthError) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+    return NextResponse.json({ error: (e as Error).message }, { status: 500 })
+  }
   const { searchParams } = new URL(req.url)
   const id = searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 })
+
+  // SECURITY: Verify party belongs to current business
+  const existing = await db.party.findFirst({ where: { id, businessId } })
+  if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const body = await req.json()
   const party = await db.party.update({
@@ -142,10 +151,23 @@ export async function PUT(req: NextRequest) {
 
 // DELETE /api/parties?id=xxx
 export async function DELETE(req: NextRequest) {
+  let businessId: string
+  try { businessId = await ensureBusinessId() } catch (e) {
+    if (e instanceof AuthError) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+    return NextResponse.json({ error: (e as Error).message }, { status: 500 })
+  }
   const { searchParams } = new URL(req.url)
   const id = searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 })
 
-  await db.party.delete({ where: { id } })
-  return NextResponse.json({ ok: true })
+  // SECURITY: Verify party belongs to current business
+  const existing = await db.party.findFirst({ where: { id, businessId } })
+  if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  try {
+    await db.party.delete({ where: { id } })
+    return NextResponse.json({ ok: true })
+  } catch (e) {
+    return NextResponse.json({ error: 'Cannot delete party with existing transactions. Consider deactivating instead.' }, { status: 400 })
+  }
 }

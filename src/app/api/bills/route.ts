@@ -82,6 +82,17 @@ export async function POST(req: NextRequest) {
   const business = await db.business.findUnique({ where: { id: businessId } })
   if (!business) return NextResponse.json({ error: 'Business not found' }, { status: 400 })
 
+  // Check for duplicate supplier invoice number
+  if (body.supplierInvoiceNumber) {
+    const duplicate = await db.purchaseBill.findFirst({
+      where: { businessId, partyId: body.partyId, supplierInvoiceNumber: body.supplierInvoiceNumber },
+    })
+    if (duplicate) {
+      return NextResponse.json({ error: `Duplicate supplier invoice number '${body.supplierInvoiceNumber}' already exists (${duplicate.number})` }, { status: 409 })
+    }
+  }
+  if (!business) return NextResponse.json({ error: 'Business not found' }, { status: 400 })
+
   const lineInputs = body.lines.map((l: { quantity: number; unitPrice: number; discount: number; taxRate?: number }) => ({
     quantity: l.quantity,
     unitPrice: l.unitPrice,

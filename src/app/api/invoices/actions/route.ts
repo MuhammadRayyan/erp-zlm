@@ -66,6 +66,7 @@ export async function POST(req: NextRequest) {
 
   if (action === 'void') {
     if (invoice.status === 'DRAFT') {
+      return NextResponse.json({ error: 'Draft invoices can be deleted instead of voided' }, { status: 400 })
       const updated = await db.salesInvoice.update({ where: { id }, data: { status: 'VOID' } })
       return NextResponse.json(updated)
     }
