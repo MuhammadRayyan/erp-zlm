@@ -1,3 +1,19 @@
+// ============================================================
+// JOURNAL SERVICE — Double-entry bookkeeping engine
+// ============================================================
+// This module is the SINGLE entry point for all financial transactions.
+// Every invoice, bill, payment, and manual journal entry flows through
+// postJournalEntry() which:
+// 1. Validates debits = credits (double-entry rule)
+// 2. Checks period lock (prevents posting to closed periods)
+// 3. Validates all account IDs belong to the business
+// 4. Generates sequential journal numbers atomically ($transaction)
+// 5. Creates the journal entry with all lines
+//
+// Reversals (for credit notes, voids) use reverseJournalEntry()
+// which creates a mirror entry with swapped debits/credits.
+// ============================================================
+
 import { db } from './db'
 import { Decimal, money, add, isBalanced } from './decimal'
 

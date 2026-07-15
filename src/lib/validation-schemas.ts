@@ -1,3 +1,17 @@
+// ============================================================
+// VALIDATION SCHEMAS — Zod schemas for all financial documents
+// ============================================================
+// Every API route that accepts user input MUST validate with these
+// schemas before processing. This converts malformed requests from
+// 500 errors into clean 400 responses with field-level errors.
+//
+// Usage:
+//   const validation = validateBody(invoiceSchema, body)
+//   if (!validation.success) {
+//     return NextResponse.json({ error: 'Validation failed', fieldErrors: validation.errors }, { status: 400 })
+//   }
+// ============================================================
+
 import { z } from 'zod'
 
 // Reusable Zod schemas for all financial document routes

@@ -1,3 +1,16 @@
+// ============================================================
+// VAT SERVICE — UAE VAT calculation and e-invoicing utilities
+// ============================================================
+// Handles:
+// - Line item VAT calculation (per-line, with discount support)
+// - Document totals (subtotal, VAT, total) using decimal.js
+// - VAT breakdown by rate (for invoices with mixed rates)
+// - TRN validation (15 digits, UAE format)
+// - E-invoice UUID generation (crypto.randomUUID for PINT AE)
+//
+// UAE VAT rates: 5% standard, 0% zero-rated, exempt, out-of-scope
+// ============================================================
+
 import { randomUUID } from 'crypto'
 import { Decimal, money, mul, div, calcVAT, lineTotal, toNumber } from './decimal'
 

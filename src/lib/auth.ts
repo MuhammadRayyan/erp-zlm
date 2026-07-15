@@ -1,3 +1,18 @@
+// ============================================================
+// AUTH MODULE — JWT authentication, session management, RBAC
+// ============================================================
+// This module handles:
+// - Password hashing (bcrypt, 10 rounds)
+// - JWT session token creation/verification (jose library)
+// - HTTP-only cookie management (sameSite=strict, secure in prod)
+// - Permission checks (PLATFORM_ADMIN, TENANT_ADMIN, ACCOUNTANT, VIEWER)
+// - Tenant isolation (ensureBusinessId verifies business belongs to tenant)
+// - Multi-tenant context (tenant switcher, business switcher)
+//
+// SECURITY: All API routes must call ensureBusinessId() at the top
+// to verify the user is authenticated and has access to the business.
+// ============================================================
+
 import bcrypt from 'bcryptjs'
 import { SignJWT, jwtVerify } from 'jose'
 import { cookies } from 'next/headers'
