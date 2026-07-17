@@ -341,7 +341,7 @@ async function seedTestTenant3() {
 // SAMPLE DATA (customers, suppliers, invoices, bills, payments)
 // ============================================================
 
-async function createSampleData(businessId: string, userId: string) {
+export async function createSampleData(businessId: string, userId: string) {
   // Customers
   const customer1 = await db.party.create({
     data: {

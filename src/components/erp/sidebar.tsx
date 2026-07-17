@@ -23,20 +23,19 @@ export function Sidebar({ activeModule, onNavigate, auth, onLogout }: SidebarPro
   const [collapsed, setCollapsed] = React.useState(false)
   const isPlatformAdmin = auth.user.role === 'PLATFORM_ADMIN'
 
-  // Build nav groups based on role
-  const groups = [...NAV_GROUPS]
+  let groups: any[] = []
 
-  // Add admin section for platform admin
   if (isPlatformAdmin) {
-    groups.push({
-      group: 'Administration',
-      items: [
-        { id: 'admin-portal', label: 'Platform Admin', icon: 'Shield', group: 'Administration' },
-        { id: 'tenant-portal', label: 'Tenant Settings', icon: 'UserCog', group: 'Administration' },
-      ],
-    })
+    groups = [
+      {
+        group: 'Platform Administration',
+        items: [
+          { id: 'admin-portal', label: 'Platform Admin', icon: 'Shield', group: 'Platform Administration' },
+        ],
+      }
+    ]
   } else {
-    // Tenant admin sees tenant portal
+    groups = [...NAV_GROUPS]
     groups.push({
       group: 'Administration',
       items: [

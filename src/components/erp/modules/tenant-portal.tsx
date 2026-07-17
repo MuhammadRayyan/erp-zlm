@@ -320,18 +320,18 @@ function SubscriptionTab({ canManage }: { canManage: boolean }) {
         </CardContent>
       </Card>
 
-      {/* Available Plans */}
+      {/* Current Plan */}
       {canManage && plans && (
         <Card>
-          <CardHeader><CardTitle>Available Plans</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Current Plan</CardTitle></CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-              {plans.filter(p => p.isPublic).map(p => (
-                <Card key={p.id} className={p.name === sub.plan?.name ? 'border-emerald-500' : ''}>
+              {plans.filter(p => p.name === sub.plan?.name).map(p => (
+                <Card key={p.id} className="border-emerald-500">
                   <CardContent className="p-5">
                     <div className="flex items-center justify-between">
                       <h3 className="font-bold">{p.name}</h3>
-                      {p.name === sub.plan?.name && <Badge className="bg-emerald-100 text-emerald-700">Current</Badge>}
+                      <Badge className="bg-emerald-100 text-emerald-700">Current</Badge>
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground">{p.description}</p>
                     <div className="mt-3"><span className="text-xl font-bold">{fmtMoney(p.priceMonthly, 'AED')}</span><span className="text-xs text-muted-foreground">/mo</span></div>
@@ -339,18 +339,13 @@ function SubscriptionTab({ canManage }: { canManage: boolean }) {
                       <div className="flex justify-between"><span className="text-muted-foreground">Businesses</span><span>{p.maxBusinesses === 0 ? '∞' : p.maxBusinesses}</span></div>
                       <div className="flex justify-between"><span className="text-muted-foreground">Users</span><span>{p.maxUsers === 0 ? '∞' : p.maxUsers}</span></div>
                     </div>
-                    {p.name !== sub.plan?.name && (
-                      <Button size="sm" className="mt-3 w-full" onClick={async () => {
-                        const res = await fetch('/api/tenant/subscription', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ planId: p.id }) })
-                        if (res.ok) { toast.success(`Switched to ${p.name}`); window.location.reload() }
-                        else { const e = await res.json(); toast.error(e.error || 'Failed') }
-                      }}>
-                        {p.priceMonthly > (sub.plan?.priceMonthly || 0) ? 'Upgrade' : 'Downgrade'}
-                      </Button>
-                    )}
                   </CardContent>
                 </Card>
               ))}
+              <Card className="flex flex-col items-center justify-center border-dashed p-6 text-center text-muted-foreground">
+                <p className="text-sm">Need more businesses or users?</p>
+                <Button variant="outline" className="mt-4" disabled>Contact admin to upgrade</Button>
+              </Card>
             </div>
           </CardContent>
         </Card>

@@ -37,31 +37,36 @@ export async function POST(req: NextRequest) {
       const subtotal = toNumber(money(invoice.subtotal))
       const tax = toNumber(money(invoice.totalTax))
 
-      await postJournalEntry({
-        businessId,
-        userId: user.id,
-        date: invoice.date,
-        reference: `Invoice ${invoice.number}`,
-        description: `Sales Invoice ${invoice.number} - ${invoice.party.name}`,
-        sourceType: 'SALES_INVOICE',
-        sourceId: invoice.id,
-        lines: [
-          { accountId: arAccount.id, debit: total, credit: 0, partyId: invoice.partyId, description: `Invoice ${invoice.number}` },
-          { accountId: salesAccount.id, debit: 0, credit: subtotal, description: `Sales - ${invoice.number}` },
-          ...(vatOutputAccount && tax > 0 ? [{ accountId: vatOutputAccount.id, debit: 0, credit: tax, description: `Output VAT - ${invoice.number}` }] : []),
-        ],
-      })
-    }
+      try {
+        await postJournalEntry({
+          businessId,
+          userId: user.id,
+          date: invoice.date,
+          reference: `Invoice ${invoice.number}`,
+          description: `Sales Invoice ${invoice.number} - ${invoice.party.name}`,
+          sourceType: 'SALES_INVOICE',
+          sourceId: invoice.id,
+          lines: [
+            { accountId: arAccount.id, debit: total, credit: 0, partyId: invoice.partyId, description: `Invoice ${invoice.number}` },
+            { accountId: salesAccount.id, debit: 0, credit: subtotal, description: `Sales - ${invoice.number}` },
+            ...(vatOutputAccount && tax > 0 ? [{ accountId: vatOutputAccount.id, debit: 0, credit: tax, description: `Output VAT - ${invoice.number}` }] : []),
+          ],
+        })
 
-    const updated = await db.salesInvoice.update({
-      where: { id },
-      data: {
-        status: 'POSTED',
-        postedAt: new Date(),
-        einvoiceUuid: generateEInvoiceUuid(),
-      },
-    })
-    return NextResponse.json(updated)
+        const updated = await db.salesInvoice.update({
+          where: { id },
+          data: {
+            status: 'POSTED',
+            postedAt: new Date(),
+            einvoiceUuid: generateEInvoiceUuid(),
+          },
+        })
+        return NextResponse.json(updated)
+      } catch (err: any) {
+        console.error('Failed to post journal entry:', err)
+        return NextResponse.json({ error: err.message || 'Failed to post journal entry' }, { status: 400 })
+      }
+    }
   }
 
   if (action === 'void') {

@@ -7,7 +7,7 @@
 // ============================================================
 
 import { db } from '@/lib/db'
-import { addMoreTestData } from '@/lib/seed-all'
+import { createSampleData } from '@/lib/seed-all'
 
 async function main() {
   // Find the Tech Solutions LLC tenant + its first business (Tech Solutions LLC)
@@ -37,7 +37,7 @@ async function main() {
   }
 
   console.log(`Applying extra test data to business "${business.name}" (${business.id}) as user ${ownerLink.userId}…`)
-  await addMoreTestData(business.id, ownerLink.userId)
+  await createSampleData(business.id, ownerLink.userId)
   console.log('Done.')
 }
 

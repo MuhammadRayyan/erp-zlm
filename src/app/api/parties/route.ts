@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { ensureBusinessId, getCurrentTenantId } from '@/lib/auth'
+import { ensureBusinessId, getCurrentTenantId, AuthError } from '@/lib/auth'
 import { toNumber } from '@/lib/decimal'
 
 // GET /api/parties?type=CUSTOMER|SUPPLIER

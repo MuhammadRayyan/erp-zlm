@@ -73,6 +73,40 @@ export async function POST(req: NextRequest) {
   return NextResponse.json(dn)
 }
 
+// PUT
+export async function PUT(req: NextRequest) {
+  const businessId = await ensureBusinessId()
+  const { searchParams } = new URL(req.url)
+  const id = searchParams.get('id')
+  if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 })
+
+  const dn = await db.deliveryNote.findFirst({ where: { id, businessId } })
+  if (!dn) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (dn.status !== 'DRAFT') return NextResponse.json({ error: 'Only draft delivery notes can be edited' }, { status: 400 })
+
+  const body = await req.json()
+  const validation = validateBody(deliveryNoteSchema, body)
+  if (!validation.success) return NextResponse.json({ error: 'Validation failed', fieldErrors: validation.errors }, { status: 400 })
+
+  await db.deliveryNoteLine.deleteMany({ where: { deliveryNoteId: id } })
+
+  const updated = await db.deliveryNote.update({
+    where: { id },
+    data: {
+      date: new Date(body.date), partyId: body.partyId, invoiceId: body.invoiceId || null,
+      notes: body.notes || null, reference: body.reference || null,
+      lines: {
+        create: body.lines.map((l: { description: string; quantity: number; itemId?: string }, i: number) => ({
+          description: l.description, quantity: l.quantity, itemId: l.itemId || null, position: i,
+        })),
+      },
+    },
+    include: { lines: true },
+  })
+
+  return NextResponse.json(updated)
+}
+
 // DELETE
 export async function DELETE(req: NextRequest) {
   const { searchParams } = new URL(req.url)

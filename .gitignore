@@ -57,5 +57,15 @@ db/*.db
 db/*.db-shm
 db/*.db-wal
 db/*.db-journal
+prisma/*.db
+prisma/*.db-shm
+prisma/*.db-wal
+prisma/*.db-journal
 tool-results/
 upload/
+scratch/
+
+# Playwright
+playwright-report/
+test-results/
+.auth/

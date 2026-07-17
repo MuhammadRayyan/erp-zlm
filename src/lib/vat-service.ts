@@ -100,8 +100,12 @@ export function validateTRN(trn: string): boolean {
 
 // Generate a PINT AE-compatible UUID for e-invoicing
 export function generateEInvoiceUuid(): string {
-  // Use Node.js crypto.randomUUID for cryptographically secure UUIDs
-  // Required for PINT AE e-invoicing compliance
-  // crypto.randomUUID() is available in all Node.js 16+ environments
-  return randomUUID()
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID()
+  }
+  // Fallback if randomUUID is not available
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
 }

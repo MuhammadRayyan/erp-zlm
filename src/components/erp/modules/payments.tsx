@@ -85,7 +85,10 @@ function PaymentForm({ navigate, preselectInvoiceId }: any & { preselectInvoiceI
       const t = type === 'RECEIPT' ? 'CUSTOMER' : 'SUPPLIER'
       fetch(`/api/${type === 'RECEIPT' ? 'invoices' : 'bills'}?partyId=${partyId}`)
         .then(r => r.json())
-        .then(d => setAvailableInvoices((d || []).filter((x: Invoice) => x.balanceDue > 0)))
+        .then(d => {
+          const list = Array.isArray(d) ? d : d?.items || []
+          setAvailableInvoices(list.filter((x: Invoice) => x.balanceDue > 0))
+        })
     }
   }, [partyId, type])
 

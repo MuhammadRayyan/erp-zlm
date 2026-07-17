@@ -48,16 +48,16 @@ export function retryAfterSeconds(key: string): number {
 
 // 10 attempts per 15 minutes in production, 50 per 5 min in development
 export function checkLoginRateLimit(ip: string): boolean {
-  if (process.env.NODE_ENV === 'development') {
-    return rateLimit(`login:${ip}`, 50, 5 * 60 * 1000)
+  if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test') {
+    return rateLimit(`login:${ip}`, 500, 5 * 60 * 1000)
   }
   return rateLimit(`login:${ip}`, 10, 15 * 60 * 1000)
 }
 
 // 5 attempts per hour in production, 20 per 5 min in development
 export function checkRegisterRateLimit(ip: string): boolean {
-  if (process.env.NODE_ENV === 'development') {
-    return rateLimit(`register:${ip}`, 20, 5 * 60 * 1000)
+  if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test') {
+    return rateLimit(`register:${ip}`, 200, 5 * 60 * 1000)
   }
   return rateLimit(`register:${ip}`, 5, 60 * 60 * 1000)
 }

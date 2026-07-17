@@ -60,8 +60,31 @@ export async function middleware(req: NextRequest) {
   // Verify JWT cryptographic signature using jose (Edge-compatible)
   try {
     const secret = getJwtSecret()
-    await jwtVerify(sessionCookie, secret)
-  } catch {
+    const { payload } = await jwtVerify(sessionCookie, secret)
+
+    const isMutation = ['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method)
+    
+    // Role-based Access Control (RBAC) Enforcement
+    if (payload.tenantRole === 'VIEWER') {
+      console.log("[MIDDLEWARE] Viewer detected for mutation:", req.method, pathname);
+      if (isMutation && !pathname.startsWith('/api/templates/preview')) {
+        console.log("[MIDDLEWARE] BLOCKING VIEWER");
+        return NextResponse.json({ error: 'Unauthorized: Viewers have read-only access' }, { status: 403 })
+      }
+    }
+
+    if (payload.tenantRole === 'ACCOUNTANT') {
+      const restrictedPrefixes = ['/api/tenant', '/api/settings', '/api/custom-fields', '/api/templates', '/api/tax-rates']
+      if (restrictedPrefixes.some(p => pathname.startsWith(p)) && !pathname.startsWith('/api/templates/preview')) {
+        const isStrictPrefix = pathname.startsWith('/api/tenant') || pathname.startsWith('/api/settings');
+        if (isMutation || isStrictPrefix) {
+          console.log("[MIDDLEWARE] BLOCKING ACCOUNTANT");
+          return NextResponse.json({ error: 'Unauthorized: Accountants cannot access or modify configuration' }, { status: 403 })
+        }
+      }
+    }
+  } catch (error) {
+    console.error("[MIDDLEWARE] Error verifying JWT:", error);
     // Token is invalid, expired, or signature doesn't match
     return NextResponse.json(
       { error: 'Invalid or expired session' },

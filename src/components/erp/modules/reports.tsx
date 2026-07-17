@@ -35,10 +35,19 @@ export function ReportsModule(_props: ModuleProps) {
 
   const loadReport = async () => {
     setLoading(true)
-    const res = await fetch(`/api/reports?type=${reportType}&startDate=${startDate}&endDate=${endDate}`)
-    const d = await res.json()
-    setData(d)
-    setLoading(false)
+    try {
+      const res = await fetch(`/api/reports?type=${reportType}&startDate=${startDate}&endDate=${endDate}`)
+      if (res.ok) {
+        const d = await res.json()
+        setData(d)
+      } else {
+        console.error('Failed to load report', res.status)
+      }
+    } catch (err) {
+      console.error('Network error', err)
+    } finally {
+      setLoading(false)
+    }
   }
 
   React.useEffect(() => { loadReport() }, [reportType])
@@ -56,7 +65,7 @@ export function ReportsModule(_props: ModuleProps) {
         {reports.map(r => {
           const Icon = r.icon
           return (
-            <button key={r.id} onClick={() => setReportType(r.id)} className={`text-left rounded-lg border p-4 transition-colors ${reportType === r.id ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30' : 'hover:bg-muted/50'}`}>
+            <button key={r.id} onClick={() => { setData(null); setReportType(r.id) }} className={`text-left rounded-lg border p-4 transition-colors ${reportType === r.id ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30' : 'hover:bg-muted/50'}`}>
               <Icon className="h-5 w-5 text-emerald-600" />
               <p className="mt-2 font-semibold text-sm">{r.label}</p>
               <p className="text-xs text-muted-foreground">{r.desc}</p>

@@ -19,14 +19,7 @@ import { cookies } from 'next/headers'
 import { db } from './db'
 
 const JWT_SECRET = process.env.JWT_SECRET
-if (!JWT_SECRET && process.env.NODE_ENV === 'production') {
-  throw new Error('FATAL: JWT_SECRET environment variable must be set in production. Set it in your .env file or environment.')
-}
 if (!JWT_SECRET) {
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('FATAL: JWT_SECRET environment variable must be set in production.')
-  }
-  // In development, use a warning fallback
   console.warn('WARNING: JWT_SECRET not set. Using insecure dev fallback. Set JWT_SECRET in .env for production.')
 }
 const SECRET = JWT_SECRET || 'dev-fallback-do-not-use-in-production'

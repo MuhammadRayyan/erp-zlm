@@ -12,14 +12,16 @@ import { Plus, Trash2, Save } from 'lucide-react'
 import { fmtMoney, fmtDate, StatusBadge, LoadingSpinner, EmptyState, useFetch, PageHeader, useBusiness } from '../shared/ui-helpers'
 import type { ModuleProps } from '../app-shell'
 import { toast } from 'sonner'
+import { PdfPreview } from './invoices'
+import { Printer } from 'lucide-react'
 
-interface Quotation { id: string; number: string; date: string; validUntil: string | null; partyName: string; total: number; status: string; currency: string; lines: { description: string; quantity: number; unitPrice: number; discount: number; lineTotal: number; lineTax: number }[]; notes: string | null; terms: string | null; partyId: string }
+interface Quotation { id: string; number: string; date: string; validUntil: string | null; partyName: string; total: number; status: string; currency: string; reference: string | null; lines: { description: string; quantity: number; unitPrice: number; discount: number; lineTotal: number; lineTax: number }[]; notes: string | null; terms: string | null; partyId: string }
 interface Party { id: string; name: string }
 
 export function QuotationsModule({ navigate, searchParams }: ModuleProps) {
   const { business } = useBusiness()
   const action = searchParams.get('action')
-  if (action === 'new') return <QuotationForm business={business} navigate={navigate} />
+  if (action === 'new' || action === 'edit') return <QuotationForm business={business} navigate={navigate} editId={action === 'edit' ? searchParams.get('id') : undefined} />
   if (action === 'view' && searchParams.get('id')) return <QuotationView business={business} navigate={navigate} id={searchParams.get('id')!} />
   return <QuotationList business={business} navigate={navigate} />
 }
@@ -50,15 +52,49 @@ function QuotationList({ navigate }: any) {
   )
 }
 
-function QuotationForm({ navigate }: any) {
+function QuotationForm({ navigate, editId }: any & { editId?: string }) {
   const { business } = useBusiness()
   const { data: parties } = useFetch<Party[]>('/api/parties?type=CUSTOMER')
-  const [form, setForm] = React.useState({
-    partyId: '', date: new Date().toISOString().split('T')[0], validUntil: '',
-    reference: '', notes: '', terms: '',
-    lines: [{ description: '', quantity: 1, unitPrice: 0, discount: 0, taxRate: business?.vatRegistered ? Number(business.vatRate) : 0 }],
-  })
+  const { data: editQuotation } = useFetch<Quotation>(editId ? `/api/quotations?id=${editId}` : '', [editId])
+  
+  const [form, setForm] = React.useState<{
+    partyId: string
+    date: string
+    validUntil: string
+    reference: string
+    notes: string
+    terms: string
+    lines: { description: string; quantity: number; unitPrice: number; discount: number; taxRate: number }[]
+  } | null>(null)
+
+  React.useEffect(() => {
+    if (editId && editQuotation) {
+      setForm({
+        partyId: editQuotation.partyId,
+        date: editQuotation.date.split('T')[0],
+        validUntil: editQuotation.validUntil ? editQuotation.validUntil.split('T')[0] : '',
+        reference: editQuotation.reference || '',
+        notes: editQuotation.notes || '',
+        terms: editQuotation.terms || '',
+        lines: editQuotation.lines.map(l => ({
+          description: l.description, quantity: l.quantity,
+          unitPrice: l.unitPrice, discount: l.discount,
+          taxRate: (l as any).taxRate?.rate || (business?.vatRegistered ? Number(business.vatRate) : 0),
+        })),
+      })
+    } else if (!editId && !form) {
+      setForm({
+        partyId: '', date: new Date().toISOString().split('T')[0], validUntil: '',
+        reference: '', notes: '', terms: '',
+        lines: [{ description: '', quantity: 1, unitPrice: 0, discount: 0, taxRate: business?.vatRegistered ? Number(business.vatRate) : 0 }],
+      })
+    }
+  }, [editId, editQuotation, business, form])
   const [saving, setSaving] = React.useState(false)
+
+  if (editId && !editQuotation) return <LoadingSpinner message="Loading quotation..." />
+  if (!form) return <LoadingSpinner />
+
   const vatRate = business?.vatRegistered ? Number(business.vatRate) : 0
   const currency = business?.baseCurrency || 'AED'
 
@@ -73,15 +109,17 @@ function QuotationForm({ navigate }: any) {
   const save = async () => {
     if (!form.partyId) { toast.error('Select a customer'); return }
     setSaving(true)
-    const res = await fetch('/api/quotations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
-    if (res.ok) { const q = await res.json(); toast.success('Quotation created'); navigate('quotations', { action: 'view', id: q.id }) }
+    const url = editId ? `/api/quotations?id=${editId}` : '/api/quotations'
+    const method = editId ? 'PUT' : 'POST'
+    const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
+    if (res.ok) { const q = await res.json(); toast.success(`Quotation ${editId ? 'updated' : 'created'}`); navigate('quotations', { action: 'view', id: q.id }) }
     else toast.error('Failed')
     setSaving(false)
   }
 
   return (
     <div className="space-y-6">
-      <PageHeader title="New Quotation" onBack={() => navigate('quotations')} actions={<Button onClick={save} disabled={saving}><Save className="mr-2 h-4 w-4" /> Save</Button>} />
+      <PageHeader title={editId ? "Edit Quotation" : "New Quotation"} onBack={() => navigate('quotations')} actions={<Button onClick={save} disabled={saving}><Save className="mr-2 h-4 w-4" /> Save</Button>} />
       <Card><CardContent className="p-5 space-y-4">
         <div className="grid grid-cols-3 gap-4">
           <div><Label>Customer *</Label><Select value={form.partyId} onValueChange={v => setForm({ ...form, partyId: v })}><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger><SelectContent>{parties?.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
@@ -118,21 +156,36 @@ function QuotationForm({ navigate }: any) {
 function QuotationView({ navigate, id }: any) {
   const { business } = useBusiness()
   const { data: q, loading } = useFetch<Quotation>(`/api/quotations?id=${id}`, [id])
+  const [showPdf, setShowPdf] = React.useState(false)
+
   if (loading || !q) return <LoadingSpinner message="Loading quotation..." />
   const currency = q.currency || business?.baseCurrency || 'AED'
   return (
     <div className="space-y-6">
-      <PageHeader title={`Quotation ${q.number}`} onBack={() => navigate('quotations')} />
-      <Card><CardContent className="p-6">
-        <div className="flex items-start justify-between border-b pb-4">
-          <div><h3 className="text-xl font-bold">{q.partyName}</h3></div>
-          <div className="text-right"><h2 className="text-2xl font-bold uppercase">Quotation</h2><p className="font-semibold text-emerald-600">{q.number}</p><p className="text-sm text-muted-foreground">{fmtDate(q.date)}</p><div className="mt-2"><StatusBadge status={q.status} /></div></div>
-        </div>
-        <Table className="mt-6"><TableHeader><TableRow><TableHead>Description</TableHead><TableHead className="text-right">Qty</TableHead><TableHead className="text-right">Price</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader>
-          <TableBody>{q.lines.map((l, i) => <TableRow key={i}><TableCell>{l.description}</TableCell><TableCell className="text-right">{l.quantity}</TableCell><TableCell className="text-right">{fmtMoney(l.unitPrice, currency)}</TableCell><TableCell className="text-right font-medium">{fmtMoney(l.lineTotal + l.lineTax, currency)}</TableCell></TableRow>)}</TableBody>
-        </Table>
-        <div className="mt-4 flex justify-end"><div className="w-64"><div className="flex justify-between border-t pt-2 text-base font-bold"><span>Total</span><span className="text-emerald-700 dark:text-emerald-400">{fmtMoney(q.total, currency)}</span></div></div></div>
-      </CardContent></Card>
+      <PageHeader 
+        title={`Quotation ${q.number}`} 
+        onBack={() => navigate('quotations')} 
+        actions={
+          <>
+            <Button variant="outline" onClick={() => setShowPdf(!showPdf)}><Printer className="mr-2 h-4 w-4" /> {showPdf ? 'Hide Preview' : 'Preview PDF'}</Button>
+            {q.status === 'DRAFT' && <Button variant="outline" onClick={() => navigate('quotations', { action: 'edit', id })}>Edit</Button>}
+          </>
+        }
+      />
+      {showPdf ? (
+        <PdfPreview doctype="QUOTATION" documentId={id} />
+      ) : (
+        <Card><CardContent className="p-6">
+          <div className="flex items-start justify-between border-b pb-4">
+            <div><h3 className="text-xl font-bold">{q.partyName}</h3></div>
+            <div className="text-right"><h2 className="text-2xl font-bold uppercase">Quotation</h2><p className="font-semibold text-emerald-600">{q.number}</p><p className="text-sm text-muted-foreground">{fmtDate(q.date)}</p><div className="mt-2"><StatusBadge status={q.status} /></div></div>
+          </div>
+          <Table className="mt-6"><TableHeader><TableRow><TableHead>Description</TableHead><TableHead className="text-right">Qty</TableHead><TableHead className="text-right">Price</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader>
+            <TableBody>{q.lines.map((l, i) => <TableRow key={i}><TableCell>{l.description}</TableCell><TableCell className="text-right">{l.quantity}</TableCell><TableCell className="text-right">{fmtMoney(l.unitPrice, currency)}</TableCell><TableCell className="text-right font-medium">{fmtMoney(l.lineTotal + l.lineTax, currency)}</TableCell></TableRow>)}</TableBody>
+          </Table>
+          <div className="mt-4 flex justify-end"><div className="w-64"><div className="flex justify-between border-t pt-2 text-base font-bold"><span>Total</span><span className="text-emerald-700 dark:text-emerald-400">{fmtMoney(q.total, currency)}</span></div></div></div>
+        </CardContent></Card>
+      )}
     </div>
   )
 }

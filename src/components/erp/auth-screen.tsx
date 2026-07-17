@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Calculator, Mail, Lock, User, Building2, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
-export function AuthScreen({ onAuthed }: { onAuthed: () => void }) {
+export function AuthScreen({ onAuthed }: { onAuthed: (data: { userId: string; email: string; name: string; role: string; tenantId: string | null; tenantRole: string | null }) => void }) {
   const [loading, setLoading] = React.useState(false)
 
   const login = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -28,7 +28,7 @@ export function AuthScreen({ onAuthed }: { onAuthed: () => void }) {
       const data = await res.json()
       if (res.ok) {
         toast.success(`Welcome back, ${data.name}!`)
-        onAuthed()
+        onAuthed(data)
       } else {
         toast.error(data.error || 'Login failed')
       }
@@ -57,7 +57,7 @@ export function AuthScreen({ onAuthed }: { onAuthed: () => void }) {
       const data = await res.json()
       if (res.ok) {
         toast.success('Account created! Welcome to AccountERP.')
-        onAuthed()
+        onAuthed(data)
       } else {
         toast.error(data.error || 'Registration failed')
       }

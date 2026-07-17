@@ -5,7 +5,8 @@
 // Tenant isolation: row-level via tenantId on all business-scoped tables
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "windows", "debian-openssl-3.0.x"]
 }
 
 datasource db {
@@ -38,6 +39,9 @@ model User {
   payments          Payment[]       @relation("PaymentCreatedBy")
   auditLogs         AuditLog[]
   activities        ActivityLog[]
+  closedFiscalYears FiscalYear[]    @relation("FiscalYearClosedBy")
+  lockedPeriods     PeriodLock[]    @relation("PeriodLockedBy")
+  reconciliations   Reconciliation[] @relation("ReconciliationReconciledBy")
 }
 
 // A Tenant = a customer organization that bought a license/subscription
@@ -178,6 +182,9 @@ model Business {
   tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   accounts        Account[]
   parties         Party[]
+  fiscalYears     FiscalYear[]
+  periodLocks     PeriodLock[]
+  reconciliations Reconciliation[]
   journalEntries  JournalEntry[]
   salesInvoices   SalesInvoice[]
   purchaseBills   PurchaseBill[]
@@ -398,6 +405,9 @@ model SalesInvoice {
   customFields  String?
   einvoiceUuid  String?
   einvoiceXml   String?
+  approvalStatus String  @default("PENDING")
+  approvedBy    String?
+  approvedAt    DateTime?
   postedAt      DateTime?
   createdById   String
   createdAt     DateTime @default(now())
@@ -460,6 +470,9 @@ model PurchaseBill {
   status        String   @default("DRAFT")
   notes         String?
   customFields  String?
+  approvalStatus String  @default("PENDING")
+  approvedBy    String?
+  approvedAt    DateTime?
   postedAt      DateTime?
   createdById   String
   createdAt     DateTime @default(now())
@@ -651,6 +664,11 @@ model Payment {
   description   String?
   status        String   @default("POSTED")
   customFields  String?
+  approvalStatus String  @default("PENDING")
+  approvedBy    String?
+  approvedAt    DateTime?
+  isReconciled  Boolean  @default(false)
+  reconciledAt  DateTime?
   createdById   String
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -767,6 +785,7 @@ model BankAccount {
 
   business      Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
   transactions  BankTransaction[]
+  reconciliations Reconciliation[]
 }
 
 model BankTransaction {
@@ -780,9 +799,11 @@ model BankTransaction {
   isReconciled  Boolean  @default(false)
   reconciledAt  DateTime?
   paymentId     String?
+  reconciliationId String?
   createdAt     DateTime @default(now())
 
   bankAccount   BankAccount @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+  reconciliation Reconciliation? @relation(fields: [reconciliationId], references: [id], onDelete: SetNull)
 
   @@index([bankAccountId, date])
   @@index([isReconciled])
@@ -892,4 +913,55 @@ model AppSetting {
   id    String @id @default(cuid())
   key   String @unique
   value String
+}
+
+model FiscalYear {
+  id            String    @id @default(cuid())
+  businessId    String
+  name          String
+  startDate     DateTime
+  endDate       DateTime
+  status        String    @default("OPEN")
+  closedAt      DateTime?
+  closedBy      String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  business      Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  closedByUser  User?     @relation("FiscalYearClosedBy", fields: [closedBy], references: [id], onDelete: SetNull)
+
+  @@unique([businessId, startDate])
+}
+
+model PeriodLock {
+  id            String    @id @default(cuid())
+  businessId    String
+  year          Int
+  month         Int       // 0 for full year, 1-12 for specific months
+  lockedBy      String
+  lockedAt      DateTime  @default(now())
+
+  business      Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  lockedByUser  User      @relation("PeriodLockedBy", fields: [lockedBy], references: [id], onDelete: Restrict)
+}
+
+model Reconciliation {
+  id                     String    @id @default(cuid())
+  businessId             String
+  bankAccountId          String
+  statementDate          DateTime
+  statementEndingBalance Decimal
+  status                 String    @default("IN_PROGRESS") // IN_PROGRESS, COMPLETED
+  reconciledAt           DateTime?
+  reconciledBy           String?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  business               Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  bankAccount            BankAccount @relation(fields: [bankAccountId], references: [id], onDelete: Restrict)
+  reconciledByUser       User?       @relation("ReconciliationReconciledBy", fields: [reconciledBy], references: [id], onDelete: SetNull)
+  bankTransactions       BankTransaction[]
+
+  @@index([businessId])
+  @@index([bankAccountId])
 }

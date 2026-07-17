@@ -168,8 +168,21 @@ export function useFetch<T>(url: string, deps: React.DependencyList = []): {
     let cancelled = false
     setLoading(true)
     fetch(url)
-      .then(r => r.json())
-      .then(d => { if (!cancelled) { setData(d); setError(null) } })
+      .then(async (r) => {
+        const json = await r.json()
+        return { ok: r.ok, status: r.status, data: json }
+      })
+      .then(({ ok, status, data }) => {
+        if (!cancelled) {
+          if (!ok) {
+            setError(data.error || `API Error ${status}`)
+            setData(null)
+          } else {
+            setData(data)
+            setError(null)
+          }
+        }
+      })
       .catch(e => { if (!cancelled) setError(e.message) })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }

@@ -31,16 +31,23 @@ export async function POST(req: NextRequest) {
       const tax = toNumber(money(bill.totalTax))
       const total = toNumber(money(bill.total))
 
-      await postJournalEntry({
-        businessId, userId: user.id, date: bill.date,
-        reference: `Bill ${bill.number}`, description: `Purchase Bill ${bill.number} - ${bill.party.name}`,
-        sourceType: 'PURCHASE_BILL', sourceId: bill.id,
-        lines: [
-          { accountId: purchasesAccount.id, debit: subtotal, credit: 0, description: `Purchase - ${bill.number}` },
-          ...(vatInputAccount && tax > 0 ? [{ accountId: vatInputAccount.id, debit: tax, credit: 0, description: `Input VAT - ${bill.number}` }] : []),
-          { accountId: apAccount.id, debit: 0, credit: total, partyId: bill.partyId, description: `Bill ${bill.number}` },
-        ],
-      })
+      try {
+        await postJournalEntry({
+          businessId, userId: user.id, date: bill.date,
+          reference: `Bill ${bill.number}`, description: `Purchase Bill ${bill.number} - ${bill.party.name}`,
+          sourceType: 'PURCHASE_BILL', sourceId: bill.id,
+          lines: [
+            { accountId: purchasesAccount.id, debit: subtotal, credit: 0, description: `Purchase - ${bill.number}` },
+            ...(vatInputAccount && tax > 0 ? [{ accountId: vatInputAccount.id, debit: tax, credit: 0, description: `Input VAT - ${bill.number}` }] : []),
+            { accountId: apAccount.id, debit: 0, credit: total, partyId: bill.partyId, description: `Bill ${bill.number}` },
+          ],
+        })
+
+        const updated = await db.purchaseBill.update({ where: { id }, data: { status: 'POSTED', postedAt: new Date() } })
+        return NextResponse.json(updated)
+      } catch (err: any) {
+        return NextResponse.json({ error: err.message || 'Failed to post journal entry' }, { status: 400 })
+      }
     }
 
     const updated = await db.purchaseBill.update({ where: { id }, data: { status: 'POSTED', postedAt: new Date() } })

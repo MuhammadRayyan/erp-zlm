@@ -15,12 +15,12 @@ export async function GET(req: NextRequest) {
     orderBy: [{ tab: 'asc' }, { section: 'asc' }, { position: 'asc' }],
   })
 
-  // Group by tab → section → fields
+  // Group by doctype → section → fields
   const grouped: Record<string, Record<string, typeof fields>> = {}
   for (const f of fields) {
-    if (!grouped[f.tab]) grouped[f.tab] = {}
-    if (!grouped[f.tab][f.section]) grouped[f.tab][f.section] = []
-    grouped[f.tab][f.section].push(f)
+    if (!grouped[f.doctype]) grouped[f.doctype] = {}
+    if (!grouped[f.doctype][f.section]) grouped[f.doctype][f.section] = []
+    grouped[f.doctype][f.section].push(f)
   }
 
   return NextResponse.json({ fields, grouped })

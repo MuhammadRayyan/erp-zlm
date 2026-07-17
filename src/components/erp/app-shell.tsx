@@ -69,8 +69,9 @@ export interface AuthState {
 export function AppShell() {
   const searchParams = useSearchParams()
   const router = useRouter()
-  const activeModule = searchParams.get('m') || 'dashboard'
   const [auth, setAuth] = React.useState<AuthState | null>(null)
+  const isPlatformAdmin = auth?.user?.role === 'PLATFORM_ADMIN'
+  const activeModule = searchParams.get('m') || (isPlatformAdmin ? 'admin-portal' : 'dashboard')
   const [loading, setLoading] = React.useState(true)
   const [searchOpen, setSearchOpen] = React.useState(false)
 
@@ -159,7 +160,6 @@ export function AppShell() {
     return <AuthScreen onAuthed={handleAuthed} />
   }
 
-  const isPlatformAdmin = auth.user.role === 'PLATFORM_ADMIN'
   const moduleProps = { business: null, navigate, searchParams, auth, refreshAuth }
 
   const renderModule = () => {

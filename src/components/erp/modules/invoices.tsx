@@ -70,7 +70,8 @@ function InvoiceList({ navigate }: any) {
   const [search, setSearch] = React.useState('')
   const [statusFilter, setStatusFilter] = React.useState('ALL')
 
-  const filtered = (invoices || []).filter(inv =>
+  const invoiceList = Array.isArray(invoices) ? invoices : (invoices as any)?.items || []
+  const filtered = invoiceList.filter((inv: Invoice) =>
     (inv.number.toLowerCase().includes(search.toLowerCase()) || inv.partyName.toLowerCase().includes(search.toLowerCase())) &&
     (statusFilter === 'ALL' || inv.status === statusFilter)
   )
@@ -463,12 +464,18 @@ function InvoiceView({ navigate, id }: any & { id: string }) {
   const currency = invoice.currency || business?.baseCurrency || 'AED'
 
   const handlePost = async () => {
-    const res = await fetch('/api/invoices/actions', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'post', id }),
-    })
-    if (res.ok) { toast.success('Invoice posted'); window.location.reload() }
-    else { const e = await res.json(); toast.error(e.error || 'Failed') }
+    console.log('handlePost invoked for id:', id);
+    try {
+      const res = await fetch('/api/invoices/actions', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'post', id }),
+      })
+      if (res.ok) { toast.success('Invoice posted'); window.location.reload() }
+      else { const e = await res.json(); toast.error(e.error || 'Failed') }
+    } catch (err) {
+      console.error('handlePost Error:', err);
+      toast.error('Network error while posting');
+    }
   }
 
   const handleVoid = async () => {

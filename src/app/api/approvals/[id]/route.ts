@@ -338,14 +338,8 @@ async function handlePaymentApproval(
   // Post journal entry — same logic as /api/payments POST
   const arAccount = await db.account.findFirst({ where: { businessId, subtype: 'ACCOUNTS_RECEIVABLE' } })
   const apAccount = await db.account.findFirst({ where: { businessId, subtype: 'ACCOUNTS_PAYABLE' } })
-  let bankAccount: { accountId: string | null } | null = null
-  if (payment.bankAccountId) {
-    bankAccount = await db.bankAccount.findUnique({ where: { id: payment.bankAccountId }, select: { accountId: true } })
-  }
   const cashAccount = await db.account.findFirst({ where: { businessId, subtype: 'CASH' } })
-  const bankGlAccount = bankAccount?.accountId
-    ? await db.account.findUnique({ where: { id: bankAccount.accountId } })
-    : await db.account.findFirst({ where: { businessId, subtype: 'BANK' } })
+  const bankGlAccount = await db.account.findFirst({ where: { businessId, subtype: 'BANK' } })
 
   const cashOrBank = bankGlAccount || cashAccount
 
